@@ -32,7 +32,7 @@ def test__main__returns_one_when_readme_changed(mocker: MockerFixture) -> None:
         return_value=True,
     )
 
-    from scripts.dev.update_readme_mcp_catalog import (
+    from scripts.dev.update_readme_mcp_catalog import (  # ruff:ignore[import-outside-top-level]
         main,
     )
 
@@ -46,7 +46,7 @@ def test__main__returns_zero_when_readme_is_current(mocker: MockerFixture) -> No
         return_value=False,
     )
 
-    from scripts.dev.update_readme_mcp_catalog import (
+    from scripts.dev.update_readme_mcp_catalog import (  # ruff:ignore[import-outside-top-level]
         main,
     )
 
@@ -64,7 +64,7 @@ def test__main__defaults_local_timezone_when_unset(
         return_value=False,
     )
 
-    from scripts.dev.update_readme_mcp_catalog import (
+    from scripts.dev.update_readme_mcp_catalog import (  # ruff:ignore[import-outside-top-level]
         main,
     )
 
