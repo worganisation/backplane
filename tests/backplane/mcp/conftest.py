@@ -91,7 +91,7 @@ def public_mcp_http_app_with_ha(
     """Create a public MCP HTTP app with HA upstream enabled and mocked OIDC.
 
     Returns:
-        A Starlette ASGI app exposing ``/mcp`` and ``/mcp-ha``.
+        A Starlette ASGI app exposing authenticated ``/mcp`` with HA tools mounted.
     """
     settings = _public_mcp_oauth_settings(
         ha_mcp_enabled=True,

@@ -19,7 +19,6 @@ from backplane.utils.settings import SETTINGS
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
 
-    from fastmcp.server.auth import AuthProvider
     from starlette.applications import Starlette
     from starlette.types import Lifespan
 
@@ -82,12 +81,8 @@ def _compose_mcp_apps(
     )
 
 
-def _build_ha_mcp(
-    *,
-    auth: AuthProvider | None,
-    require_oauth: bool,
-) -> StarletteWithLifespan | None:
-    """Build the HA-augmented MCP HTTP app when upstream proxying is enabled.
+def _build_private_ha_mcp() -> StarletteWithLifespan | None:
+    """Build the private HA-augmented MCP HTTP app when upstream proxying is enabled.
 
     Returns:
         Streamable HTTP ASGI app for ``/mcp-ha``, or ``None`` when disabled.
@@ -99,11 +94,7 @@ def _build_ha_mcp(
         url=SETTINGS.require_ha_mcp_url(),
         namespace=SETTINGS.ha_mcp_namespace,
     )
-    ha_mcp = build_backplane_mcp(
-        name="Backplane + Home Assistant",
-        auth=auth,
-        require_oauth=require_oauth,
-    )
+    ha_mcp = build_backplane_mcp(name="Backplane + Home Assistant")
     mount_home_assistant_upstream(ha_mcp, config)
     return ha_mcp.http_app(transport="http", path=_HA_MCP_HTTP_PATH)
 
@@ -112,13 +103,21 @@ def compose_public_mcp_app() -> StarletteWithLifespan:
     """Build the authenticated public MCP HTTP ASGI app.
 
     Returns:
-        Streamable HTTP ASGI app for ``/mcp`` and, when enabled, ``/mcp-ha``.
+        Streamable HTTP ASGI app for ``/mcp``. When HA upstream is enabled, HA
+        tools are mounted on the same server and gated by ``HA_MCP_SCOPE``.
     """
     auth = create_public_mcp_auth()
-    core_mcp = build_backplane_mcp(auth=auth, require_oauth=True)
-    core_app = core_mcp.http_app(transport="http")
-    ha_app = _build_ha_mcp(auth=auth, require_oauth=True)
-    return _compose_mcp_apps(core_app=core_app, ha_app=ha_app)
+    mcp = build_backplane_mcp(auth=auth, require_oauth=True)
+    if SETTINGS.ha_mcp_enabled:
+        mount_home_assistant_upstream(
+            mcp,
+            HomeAssistantMcpConfig(
+                url=SETTINGS.require_ha_mcp_url(),
+                namespace=SETTINGS.ha_mcp_namespace,
+            ),
+            require_ha_scope=True,
+        )
+    return mcp.http_app(transport="http")
 
 
 def compose_private_mcp_app() -> StarletteWithLifespan:
@@ -129,5 +128,5 @@ def compose_private_mcp_app() -> StarletteWithLifespan:
     """
     core_mcp = build_backplane_mcp(notify_home_assistant=True)
     core_app = core_mcp.http_app(transport="http")
-    ha_app = _build_ha_mcp(auth=None, require_oauth=False)
+    ha_app = _build_private_ha_mcp()
     return _compose_mcp_apps(core_app=core_app, ha_app=ha_app)

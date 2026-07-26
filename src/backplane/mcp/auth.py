@@ -1,9 +1,10 @@
 """OAuth authentication for the public Backplane MCP server.
 
 Scope model (current):
-    The public MCP server requires authentication globally. All tools and
-    resources registered with ``require_oauth=True`` use a single baseline
-    scope: ``openid``.
+    The public MCP server requires authentication globally. Core tools and
+    resources use baseline scope ``openid``. Home Assistant upstream tools
+    additionally require ``backplane.home-assistant`` so Authentik can grant
+    HA access per OAuth application (for example ChatGPT only).
 
 Future (deferred):
     A fuller MCP design may split read vs write tools using ``mcp.read`` and
@@ -33,9 +34,20 @@ if TYPE_CHECKING:
 
 MCP_BASELINE_SCOPE: Final = "openid"
 
+# Extra scope for Home Assistant upstream tools on the public MCP server.
+# Configure this scope on the Authentik Backplane MCP provider and grant it
+# only to OAuth apps that should see HA tools (for example ChatGPT).
+HA_MCP_SCOPE: Final = "backplane.home-assistant"
+
 # Requested on /authorize so Authentik returns a refresh token upstream; FastMCP
 # then includes refresh_token in /token responses (required for ChatGPT MCP).
-MCP_AUTHORIZE_SCOPES: Final[tuple[str, ...]] = (MCP_BASELINE_SCOPE, "offline_access")
+# ``HA_MCP_SCOPE`` is advertised so clients that should get HA can request it;
+# Authentik decides whether to issue it for a given application.
+MCP_AUTHORIZE_SCOPES: Final[tuple[str, ...]] = (
+    MCP_BASELINE_SCOPE,
+    "offline_access",
+    HA_MCP_SCOPE,
+)
 
 
 class OAuthSecurityScheme(TypedDict):

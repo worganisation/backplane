@@ -5,17 +5,19 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import pytest
+from fastmcp.exceptions import NotFoundError
 from fastmcp.server.auth.oidc_proxy import OIDCConfiguration
 from fastmcp.server.http import StarletteWithLifespan
 from starlette.routing import Route
 
 from backplane.mcp.app_factory import build_backplane_mcp
 from backplane.mcp.asgi import (
-    _build_ha_mcp,
+    _build_private_ha_mcp,
     _compose_mcp_apps,
     compose_private_mcp_app,
     compose_public_mcp_app,
 )
+from backplane.mcp.auth import HA_MCP_SCOPE, MCP_BASELINE_SCOPE
 from backplane.mcp.upstreams.ha import (
     HomeAssistantMcpConfig,
     mount_home_assistant_upstream,
@@ -63,12 +65,12 @@ async def test__build_backplane_mcp__core_excludes_ha_tools() -> None:
     assert not any(tool.name.startswith("ha_") for tool in tools)
 
 
-async def test__build_ha_mcp__includes_namespaced_tools(
+async def test__build_private_ha_mcp__includes_namespaced_tools(
     mocker: MockerFixture,
     ha_upstream_settings: Settings,
     sample_fake_ha_mcp: FastMCP[None],
 ) -> None:
-    """The HA-augmented MCP server exposes namespaced upstream tools."""
+    """The private HA-augmented MCP server exposes namespaced upstream tools."""
     mocker.patch("backplane.utils.settings.SETTINGS", ha_upstream_settings)
     mocker.patch("backplane.mcp.asgi.SETTINGS", ha_upstream_settings)
     mocker.patch(
@@ -76,7 +78,7 @@ async def test__build_ha_mcp__includes_namespaced_tools(
         return_value=sample_fake_ha_mcp,
     )
 
-    ha_app = _build_ha_mcp(auth=None, require_oauth=False)
+    ha_app = _build_private_ha_mcp()
     assert ha_app is not None
     tools = await ha_app.state.fastmcp_server.list_tools()
     tool_names = [tool.name for tool in tools]
@@ -145,11 +147,12 @@ def test__compose_mcp_apps__raises_when_ha_route_missing() -> None:
         _compose_mcp_apps(core_app=core_app, ha_app=ha_app)
 
 
-def test__compose_public_mcp_app__does_not_register_mcp_ha_when_disabled(
+def test__compose_public_mcp_app__does_not_register_mcp_ha_when_ha_enabled(
     mocker: MockerFixture,
     sample_oidc_configuration: OIDCConfiguration,
+    sample_fake_ha_mcp: FastMCP[None],
 ) -> None:
-    """The public app exposes only /mcp when HA upstream is disabled."""
+    """The public app stays on /mcp only; HA tools mount onto that endpoint."""
     settings = Settings.model_validate(
         {
             "obsidian_vault_path": AsyncPath("/tmp/vault"),
@@ -160,7 +163,9 @@ def test__compose_public_mcp_app__does_not_register_mcp_ha_when_disabled(
             ),
             "mcp_oidc_client_id": "client-id",
             "mcp_oidc_client_secret": "test-oauth-credential",
-            "ha_mcp_enabled": False,
+            "ha_mcp_enabled": True,
+            "ha_mcp_url": "http://fake-ha-mcp.example.com/mcp",
+            "ha_mcp_namespace": "ha",
         },
     )
     mocker.patch("backplane.mcp.auth.SETTINGS", settings)
@@ -170,12 +175,106 @@ def test__compose_public_mcp_app__does_not_register_mcp_ha_when_disabled(
         "backplane.mcp.auth.OIDCConfiguration.get_oidc_configuration",
         return_value=sample_oidc_configuration,
     )
+    mocker.patch(
+        "backplane.mcp.upstreams.ha.create_proxy",
+        return_value=sample_fake_ha_mcp,
+    )
 
     app = compose_public_mcp_app()
     route_paths = [route.path for route in app.routes if isinstance(route, Route)]
 
     assert "/mcp" in route_paths
     assert "/mcp-ha" not in route_paths
+
+
+async def test__mount_home_assistant_upstream__hides_ha_tools_without_scope(
+    mocker: MockerFixture,
+    sample_fake_ha_mcp: FastMCP[None],
+) -> None:
+    """HA scope middleware hides namespaced tools when the token lacks HA_MCP_SCOPE."""
+    mocker.patch(
+        "backplane.mcp.upstreams.ha.create_proxy",
+        return_value=sample_fake_ha_mcp,
+    )
+    mock_token = mocker.Mock(scopes=[MCP_BASELINE_SCOPE])
+    mocker.patch(
+        "backplane.mcp.upstreams.ha.get_access_token",
+        return_value=mock_token,
+    )
+    mcp = build_backplane_mcp()
+    mount_home_assistant_upstream(
+        mcp,
+        HomeAssistantMcpConfig(
+            url="http://fake-ha-mcp.example.com/mcp",
+            namespace="ha",
+        ),
+        require_ha_scope=True,
+    )
+
+    tool_names = [tool.name for tool in await mcp.list_tools()]
+
+    assert "ha_ha_get_state" not in tool_names
+    assert "ha_ha_call_service" not in tool_names
+
+
+async def test__mount_home_assistant_upstream__shows_ha_tools_with_scope(
+    mocker: MockerFixture,
+    sample_fake_ha_mcp: FastMCP[None],
+) -> None:
+    """HA scope middleware reveals namespaced tools when the token includes HA_MCP_SCOPE."""
+    mocker.patch(
+        "backplane.mcp.upstreams.ha.create_proxy",
+        return_value=sample_fake_ha_mcp,
+    )
+    mock_token = mocker.Mock(scopes=[MCP_BASELINE_SCOPE, HA_MCP_SCOPE])
+    mocker.patch(
+        "backplane.mcp.upstreams.ha.get_access_token",
+        return_value=mock_token,
+    )
+    mcp = build_backplane_mcp()
+    mount_home_assistant_upstream(
+        mcp,
+        HomeAssistantMcpConfig(
+            url="http://fake-ha-mcp.example.com/mcp",
+            namespace="ha",
+        ),
+        require_ha_scope=True,
+    )
+
+    tool_names = [tool.name for tool in await mcp.list_tools()]
+
+    assert "ha_ha_get_state" in tool_names
+    assert "ha_ha_call_service" in tool_names
+    result = await mcp.call_tool("ha_ha_get_state", {"entity_id": "light.kitchen"})
+    assert result is not None
+
+
+async def test__mount_home_assistant_upstream__blocks_ha_tool_call_without_scope(
+    mocker: MockerFixture,
+    sample_fake_ha_mcp: FastMCP[None],
+) -> None:
+    """HA scope middleware rejects direct calls to HA tools without HA_MCP_SCOPE."""
+    mocker.patch(
+        "backplane.mcp.upstreams.ha.create_proxy",
+        return_value=sample_fake_ha_mcp,
+    )
+    mock_token = mocker.Mock(scopes=[MCP_BASELINE_SCOPE])
+    mocker.patch(
+        "backplane.mcp.upstreams.ha.get_access_token",
+        return_value=mock_token,
+    )
+    mcp = build_backplane_mcp()
+    mount_home_assistant_upstream(
+        mcp,
+        HomeAssistantMcpConfig(
+            url="http://fake-ha-mcp.example.com/mcp",
+            namespace="ha",
+        ),
+        require_ha_scope=True,
+    )
+
+    with pytest.raises(NotFoundError, match="Unknown tool"):
+        await mcp.call_tool("ha_ha_get_state", {"entity_id": "light.kitchen"})
 
 
 def test__mount_home_assistant_upstream__does_not_log_secret_url(
