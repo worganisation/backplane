@@ -28,7 +28,7 @@ _MCP_OAUTH_REQUIRED_MSG = (
     "MCP_OIDC_CONFIG_URL, MCP_OIDC_CLIENT_ID, and MCP_OIDC_CLIENT_SECRET."
 )
 
-_DEFAULT_MCP_CLIENT_REDIRECT_URIS: Final[tuple[str, ...]] = (
+DEFAULT_CHATGPT_REDIRECT_URI_PATTERNS: Final[tuple[str, ...]] = (
     "https://chatgpt.com/connector/oauth/*",
     "https://chatgpt.com/connector_platform_oauth_redirect",
 )
@@ -110,6 +110,21 @@ class Settings(BaseSettings):
             description="Namespace prefix for mounted HA MCP tools.",
         ),
     ] = "ha"
+
+    ha_mcp_client_redirect_uri_patterns: Annotated[
+        tuple[str, ...],
+        Field(
+            validation_alias=AliasChoices(
+                "BACKPLANE_HA_MCP_CLIENT_REDIRECT_URI_PATTERNS",
+                "HA_MCP_CLIENT_REDIRECT_URI_PATTERNS",
+                "ha_mcp_client_redirect_uri_patterns",
+            ),
+            description=(
+                "Redirect URI patterns identifying downstream OAuth clients "
+                "allowed to receive the Home Assistant MCP scope."
+            ),
+        ),
+    ] = DEFAULT_CHATGPT_REDIRECT_URI_PATTERNS
 
     @field_validator("home_assistant_url", mode="before")
     @classmethod
@@ -194,7 +209,7 @@ class Settings(BaseSettings):
     @property
     def allowed_client_redirect_uri_patterns(self) -> list[str]:
         """Allowed MCP client redirect URI patterns (ChatGPT DCR)."""
-        return list(_DEFAULT_MCP_CLIENT_REDIRECT_URIS)
+        return list(DEFAULT_CHATGPT_REDIRECT_URI_PATTERNS)
 
     @property
     def mcp_oauth_configured(self) -> bool:

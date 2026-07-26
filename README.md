@@ -155,6 +155,8 @@ Tool routing:
 - Use `update_vault_entity` to append/prepend/replace content in an entity section.
 - Use `link_task_to_capture` after the user confirms which prior capture belongs to an existing task.
 - Use `move_note` to rename, move, or reorganise an Obsidian note.
+- Use namespaced `ha_*` tools for Home Assistant state, control, and configuration
+  requests when those tools are available to the current client.
 
 General rules:
 - Prefer `find_vault_notes` for name-like queries and `search_vault_notes` for topical
@@ -456,14 +458,18 @@ reach the add-on URL on `:9583` directly.
 | `BACKPLANE_HA_MCP_ENABLED` | Set to `true` to mount the HA MCP add-on upstream |
 | `BACKPLANE_HA_MCP_URL` | Private LAN URL from the add-on logs, e.g. `http://10.0.0.x:9583/<secret-path>` |
 | `BACKPLANE_HA_MCP_NAMESPACE` | Tool namespace prefix (default: `ha`) |
+| `BACKPLANE_HA_MCP_CLIENT_REDIRECT_URI_PATTERNS` | JSON list of downstream OAuth redirect patterns allowed to receive the HA scope (defaults to ChatGPT only) |
 
 When enabled:
 
 - **Public server (`:8001`)** — ChatGPT keeps using `/mcp`. HA tools are mounted on
-  that same endpoint and are only visible when the access token includes the
-  **`backplane.home-assistant`** scope. Grant that scope in Authentik only to
-  apps that should control Home Assistant (for example the ChatGPT connector).
-  Other public MCP clients with just `openid` keep Backplane tools without HA.
+  that same endpoint and all HA tools, resources, templates, and prompts are only
+  visible when the access token includes the
+  **`backplane.home-assistant`** scope. During dynamic client registration,
+  Backplane grants that scope only when every registered redirect URI matches
+  `BACKPLANE_HA_MCP_CLIENT_REDIRECT_URI_PATTERNS`.
+  Other public MCP clients with just `openid` keep Backplane components without
+  contacting the HA add-on.
 - **Private server (`:8000`)** — switches from SSE to streamable HTTP and serves
   `/mcp` (Backplane only) plus `/mcp-ha` (Backplane + HA). Update any LAN MCP
   client URLs accordingly.
@@ -478,15 +484,21 @@ Do **not** expose the HA MCP add-on port `:9583` on your public reverse proxy.
 #### OAuth scope model (current)
 
 The public MCP server requires authentication for all tools and resources. Core
-tools use baseline scope **`openid`**. Home Assistant upstream tools also require
-**`backplane.home-assistant`**. Authorize also requests **`offline_access`** so
-ChatGPT can refresh tokens. There is no `mcp.read` / `mcp.write` split yet — see
-the design note in `src/backplane/mcp/auth.py`.
+components use baseline scope **`openid`**. Every Home Assistant upstream
+component also requires **`backplane.home-assistant`**. The scope gate wraps the
+upstream provider itself, so unauthorised clients cannot list, invoke, or cause
+Backplane to fetch HA components. Authorize also requests **`offline_access`**
+so ChatGPT can refresh tokens. There is no `mcp.read` / `mcp.write` split yet —
+see the design note in `src/backplane/mcp/auth.py`.
 
-Create `backplane.home-assistant` under Authentik **Customization → Scopes**, add
-it to the Backplane MCP OIDC provider, and grant it only to apps that should see
-HA tools. After changing scopes, delete and reconnect the ChatGPT connector so it
-receives a new token.
+Create `backplane.home-assistant` under Authentik **Customization → Scopes** and
+add it to the Backplane MCP OIDC provider. Authentik sees Backplane's single
+fixed upstream OAuth client, so per-downstream-client entitlement is enforced by
+Backplane before authorization: DCR clients outside the configured redirect
+allowlist have the HA scope stripped from their registration. Clients that skip
+DCR and use the upstream client ID directly receive baseline scopes only. After
+changing scopes, delete and reconnect the ChatGPT connector so it receives a new
+token.
 
 #### Public route policy (`:8001`)
 
@@ -496,7 +508,13 @@ receives a new token.
 | `/.well-known/oauth-protected-resource/*` | Public |
 | FastMCP OAuth routes (`/authorize`, `/token`, `/register`, `/auth/callback`, …) | Public (state/PKCE validated by FastMCP) |
 
-The private SSE server on port `8000` is unauthenticated and must stay on your LAN.
+The private server on port `8000` is unauthenticated and must stay on your LAN.
+Keep the Home Assistant MCP integration pointed at `/mcp`, not `/mcp-ha`, to
+avoid proxying HA back into itself.
+
+Additional internal MCP passthroughs should follow the same model: one namespace
+and one Authentik scope per upstream, mounted on the existing public `/mcp`
+endpoint. Clients do not need a new URL or connector when an upstream is added.
 
 #### Future: `mcp.read` / `mcp.write`
 
@@ -535,9 +553,9 @@ On the **Backplane MCP** OAuth2/OpenID provider (`Applications` → `Providers` 
 include scopes **`openid`** and **`offline_access`**. ChatGPT custom connectors need a
 `refresh_token` from the upstream IdP; without `offline_access` in Authentik, OAuth can
 succeed in the browser but ChatGPT reports *"There was a problem connecting …"*. Add
-**`backplane.home-assistant`** when HA upstream is enabled and this connector should
-see HA tools. See `deploy/authentik-backplane-mcp.env.example` for the full provider
-checklist.
+**`backplane.home-assistant`** when HA upstream is enabled. Backplane, rather
+than Authentik, decides which downstream DCR clients may request that optional
+scope. See `deploy/authentik-backplane-mcp.env.example` for the full provider checklist.
 
 ChatGPT redirect patterns (`https://chatgpt.com/connector/oauth/*` and
 `https://chatgpt.com/connector_platform_oauth_redirect`) are already allowed by Backplane;

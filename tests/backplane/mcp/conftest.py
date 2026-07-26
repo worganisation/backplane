@@ -24,6 +24,59 @@ _TEST_OAUTH_CREDENTIAL: str = "test-oauth-credential"
 _FAKE_HA_MCP = FastMCP("Fake HA MCP")
 
 
+@_FAKE_HA_MCP.tool
+def ha_get_state(entity_id: str) -> dict[str, str]:
+    """Return a fake entity state."""
+    return {"entity_id": entity_id, "state": "off"}
+
+
+@_FAKE_HA_MCP.tool
+def ha_call_service(
+    domain: str,
+    service: str,
+    target: dict[str, object],
+) -> dict[str, bool]:
+    """Pretend to call a Home Assistant service."""
+    _ = domain, service, target
+    return {"changed": True}
+
+
+@_FAKE_HA_MCP.resource("ha://config")
+def ha_config() -> str:
+    """Return fake Home Assistant configuration."""
+    return '{"location_name": "Home"}'
+
+
+@_FAKE_HA_MCP.resource("ha://state/{entity_id}")
+def ha_state_resource(entity_id: str) -> str:
+    """Return a fake templated entity state."""
+    return f'{{"entity_id": "{entity_id}", "state": "off"}}'
+
+
+@_FAKE_HA_MCP.prompt
+def ha_control_prompt(area: str) -> str:
+    """Return a fake Home Assistant control prompt."""
+    return f"Control Home Assistant devices in {area}."
+
+
+@pytest.fixture
+def sample_fake_ha_mcp() -> FastMCP[None]:
+    """Return the in-process fake HA MCP server used by upstream tests."""
+    return _FAKE_HA_MCP
+
+
+@pytest.fixture
+def mcp_with_ha_namespace_collision() -> FastMCP[None]:
+    """Return an MCP server with a local tool in the HA namespace."""
+    mcp: FastMCP[None] = FastMCP("Collision")
+
+    def local_tool() -> None:
+        """Provide a colliding local tool."""
+
+    _ = mcp.tool(name="ha_local_tool")(local_tool)
+    return mcp
+
+
 @pytest.fixture
 def sample_oidc_configuration() -> OIDCConfiguration:
     """Return a minimal Authentik-like OIDC configuration for public MCP tests."""
@@ -74,8 +127,9 @@ def public_mcp_http_app(
         A Starlette ASGI app with test settings and mocked OIDC configuration.
     """
     settings = _public_mcp_oauth_settings()
-    mocker.patch("backplane.mcp.auth.SETTINGS", settings)
-    mocker.patch(
+    _ = mocker.patch("backplane.mcp.auth.SETTINGS", settings)
+    _ = mocker.patch("backplane.mcp.asgi.SETTINGS", settings)
+    _ = mocker.patch(
         "backplane.mcp.auth.OIDCConfiguration.get_oidc_configuration",
         return_value=sample_oidc_configuration,
     )
@@ -98,15 +152,14 @@ def public_mcp_http_app_with_ha(
         ha_mcp_url="http://fake-ha-mcp.example.com/mcp",
         ha_mcp_namespace="ha",
     )
-    mocker.patch("backplane.mcp.auth.SETTINGS", settings)
-    mocker.patch("backplane.utils.settings.SETTINGS", settings)
-    mocker.patch("backplane.mcp.asgi.SETTINGS", settings)
-    mocker.patch(
+    _ = mocker.patch("backplane.mcp.auth.SETTINGS", settings)
+    _ = mocker.patch("backplane.mcp.asgi.SETTINGS", settings)
+    _ = mocker.patch(
         "backplane.mcp.auth.OIDCConfiguration.get_oidc_configuration",
         return_value=sample_oidc_configuration,
     )
-    mocker.patch(
-        "backplane.mcp.upstreams.ha.create_proxy",
+    _ = mocker.patch(
+        "backplane.mcp.upstreams.base.create_proxy",
         return_value=_FAKE_HA_MCP,
     )
 
