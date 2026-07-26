@@ -59,7 +59,7 @@ async def _call_ha_service(
             session.post(url, json=data, headers=headers) as response,
         ):
             await _log_ha_response(response, domain, service)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:  # ruff:ignore[blind-except]
         logger.exception("{}/{} failed (url={}) — {}", domain, service, url, exc)
 
 

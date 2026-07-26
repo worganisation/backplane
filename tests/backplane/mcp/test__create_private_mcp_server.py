@@ -16,7 +16,9 @@ def test__create_private_mcp_server__notifies_home_assistant_on_startup(
     mock_server = mocker.Mock()
     mock_create.return_value = mock_server
 
-    from backplane.mcp.__main__ import create_private_mcp_server  # noqa: PLC0415
+    from backplane.mcp.__main__ import (
+        create_private_mcp_server,
+    )
 
     server = create_private_mcp_server()
 
@@ -36,7 +38,7 @@ def test__main__starts_private_mcp_server(mocker: MockerFixture) -> None:
     mocker.patch("backplane.mcp.__main__.SETTINGS.ha_mcp_enabled", new=False)
     mock_uvloop = mocker.patch("backplane.mcp.__main__.uvloop.run")
 
-    from backplane.mcp.__main__ import main  # noqa: PLC0415
+    from backplane.mcp.__main__ import main  # ruff:ignore[import-outside-top-level]
 
     main()
 
@@ -59,7 +61,7 @@ def test__main__starts_private_http_server_when_ha_upstream_enabled(
     mock_server = mocker.patch("backplane.mcp.__main__.uvicorn.Server")
     mock_config = mocker.patch("backplane.mcp.__main__.uvicorn.Config")
 
-    from backplane.mcp.__main__ import main  # noqa: PLC0415
+    from backplane.mcp.__main__ import main  # ruff:ignore[import-outside-top-level]
 
     main()
 

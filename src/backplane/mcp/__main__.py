@@ -16,7 +16,7 @@ from backplane.utils.settings import SETTINGS
 if TYPE_CHECKING:
     from fastmcp import FastMCP
 
-_HOST: Final = "0.0.0.0"  # noqa: S104
+_HOST: Final = "0.0.0.0"  # ruff:ignore[hardcoded-bind-all-interfaces]
 _PORT: Final = 8000
 
 

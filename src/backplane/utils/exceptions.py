@@ -1,4 +1,4 @@
-# ruff: noqa: D107
+# ruff:file-ignore[undocumented-public-init]
 """Exceptions for Backplane."""
 
 from __future__ import annotations
