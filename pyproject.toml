@@ -7,7 +7,7 @@ packages = ["src/backplane"]
 
 [project]
 name = "backplane"
-version = "0.6.0"
+version = "0.7.0"
 description = "AI-facing gateway for local services and smart home orchestration"
 readme = "README.md"
 requires-python = ">=3.14"

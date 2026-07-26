@@ -2,6 +2,64 @@
 
 <!-- version list -->
 
+## v0.7.0 (2026-07-26)
+
+### Bug Fixes
+
+- Update OAuth scopes and streamline HA MCP proxy
+  ([#68](https://github.com/worgarside/backplane/pull/68),
+  [`de4d8e1`](https://github.com/worgarside/backplane/commit/de4d8e11594f5d98380cd19991c75058b5e4a34c))
+
+### Chores
+
+- **deps**: Bump joserfc from 1.6.5 to 1.6.7
+  ([#59](https://github.com/worgarside/backplane/pull/59),
+  [`607b7d7`](https://github.com/worgarside/backplane/commit/607b7d768f4805c744e92f5fe8bb89c149ebbc2d))
+
+- **deps**: Bump joserfc from 1.6.7 to 1.6.8
+  ([#64](https://github.com/worgarside/backplane/pull/64),
+  [`b0989b4`](https://github.com/worgarside/backplane/commit/b0989b49251397045dd72a0123afac84171b7d21))
+
+- **deps**: Bump mcp from 1.27.1 to 1.28.1 ([#65](https://github.com/worgarside/backplane/pull/65),
+  [`a50ce5c`](https://github.com/worgarside/backplane/commit/a50ce5ce1af4a3821a14ce3f40a85532c466501d))
+
+- **deps**: Bump pyasn1 from 0.6.3 to 0.6.4 ([#67](https://github.com/worgarside/backplane/pull/67),
+  [`99ade49`](https://github.com/worgarside/backplane/commit/99ade49da693c2a57ebe8372c568dc897fd033e0))
+
+- **deps**: Bump pydantic-ai from 1.99.0 to 1.102.0
+  ([#60](https://github.com/worgarside/backplane/pull/60),
+  [`ddba8f2`](https://github.com/worgarside/backplane/commit/ddba8f26fb312a7f3d7ef78d726dbc1b1dd762d6))
+
+- **deps**: Bump pydantic-ai-slim from 1.99.0 to 1.102.0
+  ([#61](https://github.com/worgarside/backplane/pull/61),
+  [`451028f`](https://github.com/worgarside/backplane/commit/451028f8a911e880f00fd879ec9865909e767836))
+
+- **deps**: Bump pydantic-settings from 2.14.1 to 2.14.2
+  ([#57](https://github.com/worgarside/backplane/pull/57),
+  [`5fadcb3`](https://github.com/worgarside/backplane/commit/5fadcb37ba59301fa12703cb8978d20fd7414d03))
+
+### Code Style
+
+- Fixes from prek hooks
+  ([`d3f616d`](https://github.com/worgarside/backplane/commit/d3f616d7affe8ac9f83ddf5eee1a31fafcc1bdee))
+
+### Continuous Integration
+
+- Prek autoupdate ([#66](https://github.com/worgarside/backplane/pull/66),
+  [`1d6f480`](https://github.com/worgarside/backplane/commit/1d6f4808fc8a83d01bd0334e901b0ed5aa351904))
+
+- Prek autoupdate ([#63](https://github.com/worgarside/backplane/pull/63),
+  [`d3beda8`](https://github.com/worgarside/backplane/commit/d3beda883d1568802649cefecca0c8762923fbbb))
+
+- Prek autoupdate ([#58](https://github.com/worgarside/backplane/pull/58),
+  [`33d58d9`](https://github.com/worgarside/backplane/commit/33d58d9d8e8e432fd70a21bc6c3b314861c8002b))
+
+### Features
+
+- Enable HA MCP proxy through Backplane ([#62](https://github.com/worgarside/backplane/pull/62),
+  [`10343da`](https://github.com/worgarside/backplane/commit/10343da8b93a6a0d247d8c9dfd9f99610496a165))
+
+
 ## v0.6.0 (2026-06-22)
 
 ### Code Style
