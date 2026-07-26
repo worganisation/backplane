@@ -14,7 +14,7 @@ from backplane.mcp.asgi import compose_public_mcp_app
 if TYPE_CHECKING:
     from fastmcp.server.http import StarletteWithLifespan
 
-_HOST: Final = "0.0.0.0"  # noqa: S104
+_HOST: Final = "0.0.0.0"  # ruff:ignore[hardcoded-bind-all-interfaces]
 _PORT: Final = 8001
 
 

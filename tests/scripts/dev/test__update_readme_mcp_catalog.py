@@ -32,7 +32,9 @@ def test__main__returns_one_when_readme_changed(mocker: MockerFixture) -> None:
         return_value=True,
     )
 
-    from scripts.dev.update_readme_mcp_catalog import main  # noqa: PLC0415
+    from scripts.dev.update_readme_mcp_catalog import (  # ruff:ignore[import-outside-top-level]
+        main,
+    )
 
     assert main() == 1
 
@@ -44,7 +46,9 @@ def test__main__returns_zero_when_readme_is_current(mocker: MockerFixture) -> No
         return_value=False,
     )
 
-    from scripts.dev.update_readme_mcp_catalog import main  # noqa: PLC0415
+    from scripts.dev.update_readme_mcp_catalog import (  # ruff:ignore[import-outside-top-level]
+        main,
+    )
 
     assert main() == 0
 
@@ -60,7 +64,9 @@ def test__main__defaults_local_timezone_when_unset(
         return_value=False,
     )
 
-    from scripts.dev.update_readme_mcp_catalog import main  # noqa: PLC0415
+    from scripts.dev.update_readme_mcp_catalog import (  # ruff:ignore[import-outside-top-level]
+        main,
+    )
 
     assert main() == 0
     assert os.environ["LOCAL_TIMEZONE"] == "UTC"

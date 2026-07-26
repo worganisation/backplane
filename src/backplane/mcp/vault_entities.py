@@ -14,7 +14,9 @@ from backplane.services.vault_entities import (
     VaultEntityService,
 )
 from backplane.utils.enums import VaultEntityKind
-from backplane.utils.helpers.obsidian import VaultNoteMetadata  # noqa: TC001
+from backplane.utils.helpers.obsidian import (
+    VaultNoteMetadata,  # ruff:ignore[typing-only-first-party-import]
+)
 
 if TYPE_CHECKING:
     from fastmcp import FastMCP

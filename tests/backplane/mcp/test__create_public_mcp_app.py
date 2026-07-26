@@ -58,7 +58,7 @@ def test__main__starts_public_mcp_server(mocker: MockerFixture) -> None:
     mock_server = mocker.patch("backplane.mcp.public.uvicorn.Server")
     mock_config = mocker.patch("backplane.mcp.public.uvicorn.Config")
 
-    from backplane.mcp.public import main  # noqa: PLC0415
+    from backplane.mcp.public import main  # ruff:ignore[import-outside-top-level]
 
     main()
 

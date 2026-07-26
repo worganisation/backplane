@@ -338,7 +338,7 @@ def _log_metadata_agent_run(result: AgentRunResult[TaskMetadata]) -> None:
 
     try:
         cost = result.response.cost()
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:  # ruff:ignore[blind-except]
         logger.warning("Task metadata agent cost unavailable: {}", exc)
         return
 
@@ -714,7 +714,7 @@ async def _extract_metadata(
         _log_metadata_agent_run(result)
         metadata = result.output
         _log_task_metadata(metadata, context="extracted")
-    except Exception:  # noqa: BLE001
+    except Exception:  # ruff:ignore[blind-except]
         logger.exception("Metadata extraction failed; using defaults")
         fallback = TaskMetadata(
             title=title or description[:60],

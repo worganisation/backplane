@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-import datetime as dt  # noqa: TC003
+import datetime as dt  # ruff:ignore[typing-only-standard-library-import]
 import json
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, ClassVar, Final, cast, final
@@ -69,7 +69,7 @@ class ObsidianService:
             return None
 
     @asynccontextmanager
-    async def daily_note(  # noqa: PLR6301
+    async def daily_note(  # ruff:ignore[no-self-use]
         self,
         date: dt.date | None = None,
         *,

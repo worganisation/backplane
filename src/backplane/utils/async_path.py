@@ -18,7 +18,7 @@ class AsyncPath(anyio.Path):
     """Pydantic-compatible ``anyio.Path`` for models and tool responses."""
 
     @classmethod
-    def __get_pydantic_core_schema__(  # noqa: PLW3201
+    def __get_pydantic_core_schema__(  # ruff:ignore[bad-dunder-method-name]
         cls,
         source_type: object,
         handler: GetCoreSchemaHandler,

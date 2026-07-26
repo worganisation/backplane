@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from backplane.mcp.auth import OAuthToolRegistrationKwargs, oauth_tool_registration_kwargs
 from backplane.services.tasks import CaptureCandidate, CreateTaskResult, TaskService
-from backplane.utils import enums  # noqa: TC001
+from backplane.utils import enums  # ruff:ignore[typing-only-first-party-import]
 from backplane.utils.helpers.obsidian import VaultNoteMetadata
 
 if TYPE_CHECKING:
