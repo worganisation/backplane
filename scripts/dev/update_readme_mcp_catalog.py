@@ -21,7 +21,7 @@ def main() -> int:
     if "LOCAL_TIMEZONE" not in os.environ:
         os.environ["LOCAL_TIMEZONE"] = "UTC"
 
-    from .mcp_catalog import (
+    from .mcp_catalog import (  # ruff:ignore[import-outside-top-level]
         refresh_readme_catalog,
     )
 

@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from pathlib import Path  # ruff:ignore[typing-only-standard-library-import]
 from typing import TYPE_CHECKING, cast
 
+from backplane.mcp.server import create_mcp_server
+
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
@@ -185,10 +187,6 @@ async def collect_mcp_catalog() -> McpCatalog:
     Returns:
         Structured catalog of server instructions, tools, and resources.
     """
-    from backplane.mcp.server import (
-        create_mcp_server,
-    )
-
     mcp = create_mcp_server()
     tools = await mcp.list_tools()
     resources = await mcp.list_resources()
