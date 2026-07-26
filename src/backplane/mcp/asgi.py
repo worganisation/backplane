@@ -10,30 +10,34 @@ from starlette.routing import BaseRoute, Route
 
 from backplane.mcp.app_factory import build_backplane_mcp
 from backplane.mcp.auth import create_public_mcp_auth
-from backplane.mcp.upstreams.ha import (
-    HomeAssistantMcpConfig,
-    mount_home_assistant_upstream,
-)
+from backplane.mcp.upstreams import get_enabled_upstreams, mount_upstream
 from backplane.utils.settings import SETTINGS
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
 
-    from fastmcp.server.auth import AuthProvider
     from starlette.applications import Starlette
     from starlette.types import Lifespan
 
-_HA_MCP_HTTP_PATH = "/mcp-ha"
+    from backplane.mcp.upstreams.base import UpstreamMcpConfig
 
 
-def _ha_mcp_route(ha_app: StarletteWithLifespan) -> Route | None:
-    """Return the streamable HTTP route from an HA MCP ASGI app.
+def _upstream_http_path(config: UpstreamMcpConfig) -> str:
+    """Return the private HTTP path assigned to an upstream."""
+    return f"/mcp-{config.namespace}"
+
+
+def _upstream_mcp_route(
+    upstream_app: StarletteWithLifespan,
+    path: str,
+) -> Route | None:
+    """Return the streamable HTTP route from an upstream MCP ASGI app.
 
     Returns:
-        The protected MCP route for ``/mcp-ha``, or ``None`` if missing.
+        The MCP route for ``path``, or ``None`` if missing.
     """
-    for route in ha_app.routes:
-        if isinstance(route, Route) and route.path == _HA_MCP_HTTP_PATH:
+    for route in upstream_app.routes:
+        if isinstance(route, Route) and route.path == path:
             return route
     return None
 
@@ -56,69 +60,61 @@ def _combine_lifespans(
 def _compose_mcp_apps(
     *,
     core_app: StarletteWithLifespan,
-    ha_app: StarletteWithLifespan | None,
+    upstream_apps: tuple[tuple[str, StarletteWithLifespan], ...],
 ) -> StarletteWithLifespan:
-    """Merge a core MCP HTTP app with an optional HA MCP route.
+    """Merge a core MCP HTTP app with private upstream routes.
 
     Returns:
-        Combined ASGI app exposing ``/mcp`` and, when configured, ``/mcp-ha``.
+        Combined ASGI app exposing ``/mcp`` and configured upstream routes.
 
     Raises:
-        RuntimeError: If the HA MCP HTTP route is missing from the HA app.
+        RuntimeError: If an expected upstream MCP HTTP route is missing.
     """
-    if ha_app is None:
+    if not upstream_apps:
         return core_app
 
-    ha_route = _ha_mcp_route(ha_app)
-    if ha_route is None:
-        msg = f"Expected HA MCP HTTP route at {_HA_MCP_HTTP_PATH}"
-        raise RuntimeError(msg)
+    routes: list[BaseRoute] = [*core_app.routes]
+    apps = [core_app]
+    for path, upstream_app in upstream_apps:
+        upstream_route = _upstream_mcp_route(upstream_app, path)
+        if upstream_route is None:
+            msg = f"Expected upstream MCP HTTP route at {path}"
+            raise RuntimeError(msg)
+        routes.append(upstream_route)
+        apps.append(upstream_app)
 
-    routes: list[BaseRoute] = [*core_app.routes, ha_route]
     return StarletteWithLifespan(
         routes=routes,
         middleware=core_app.user_middleware,
-        lifespan=_combine_lifespans(core_app, ha_app),
+        lifespan=_combine_lifespans(*apps),
     )
 
 
-def _build_ha_mcp(
-    *,
-    auth: AuthProvider | None,
-    require_oauth: bool,
-) -> StarletteWithLifespan | None:
-    """Build the HA-augmented MCP HTTP app when upstream proxying is enabled.
+def _build_private_upstream_mcp(
+    config: UpstreamMcpConfig,
+) -> StarletteWithLifespan:
+    """Build a private Backplane server augmented with one upstream.
 
     Returns:
-        Streamable HTTP ASGI app for ``/mcp-ha``, or ``None`` when disabled.
+        Streamable HTTP ASGI app for the upstream's private path.
     """
-    if not SETTINGS.ha_mcp_enabled:
-        return None
-
-    config = HomeAssistantMcpConfig(
-        url=SETTINGS.require_ha_mcp_url(),
-        namespace=SETTINGS.ha_mcp_namespace,
-    )
-    ha_mcp = build_backplane_mcp(
-        name="Backplane + Home Assistant",
-        auth=auth,
-        require_oauth=require_oauth,
-    )
-    mount_home_assistant_upstream(ha_mcp, config)
-    return ha_mcp.http_app(transport="http", path=_HA_MCP_HTTP_PATH)
+    mcp = build_backplane_mcp(name=f"Backplane + {config.name}")
+    mount_upstream(mcp, config, gated=False)
+    return mcp.http_app(transport="http", path=_upstream_http_path(config))
 
 
 def compose_public_mcp_app() -> StarletteWithLifespan:
     """Build the authenticated public MCP HTTP ASGI app.
 
     Returns:
-        Streamable HTTP ASGI app for ``/mcp`` and, when enabled, ``/mcp-ha``.
+        Streamable HTTP ASGI app for ``/mcp``. When HA upstream is enabled, HA
+        tools are mounted on the same server and gated by ``HA_MCP_SCOPE``.
     """
     auth = create_public_mcp_auth()
-    core_mcp = build_backplane_mcp(auth=auth, require_oauth=True)
-    core_app = core_mcp.http_app(transport="http")
-    ha_app = _build_ha_mcp(auth=auth, require_oauth=True)
-    return _compose_mcp_apps(core_app=core_app, ha_app=ha_app)
+    mcp = build_backplane_mcp(auth=auth, require_oauth=True)
+    for config in get_enabled_upstreams(SETTINGS):
+        mount_upstream(mcp, config, gated=True)
+    return mcp.http_app(transport="http")
 
 
 def compose_private_mcp_app() -> StarletteWithLifespan:
@@ -129,5 +125,14 @@ def compose_private_mcp_app() -> StarletteWithLifespan:
     """
     core_mcp = build_backplane_mcp(notify_home_assistant=True)
     core_app = core_mcp.http_app(transport="http")
-    ha_app = _build_ha_mcp(auth=None, require_oauth=False)
-    return _compose_mcp_apps(core_app=core_app, ha_app=ha_app)
+    upstream_apps = tuple(
+        (
+            _upstream_http_path(config),
+            _build_private_upstream_mcp(config),
+        )
+        for config in get_enabled_upstreams(SETTINGS)
+    )
+    return _compose_mcp_apps(
+        core_app=core_app,
+        upstream_apps=upstream_apps,
+    )

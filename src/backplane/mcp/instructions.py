@@ -22,6 +22,8 @@ Tool routing:
 - Use `update_vault_entity` to append/prepend/replace content in an entity section.
 - Use `link_task_to_capture` after the user confirms which prior capture belongs to an existing task.
 - Use `move_note` to rename, move, or reorganise an Obsidian note.
+- Use namespaced `ha_*` tools for Home Assistant state, control, and configuration
+  requests when those tools are available to the current client.
 
 General rules:
 - Prefer `find_vault_notes` for name-like queries and `search_vault_notes` for topical

@@ -2,14 +2,33 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypedDict, cast
 
 import httpx
 
+from backplane.mcp.auth import HA_MCP_SCOPE, MCP_BASELINE_SCOPE
+
 _PUBLIC_MCP_BASE_URL = "https://backplane-mcp.example.com"
+_EXPECTED_SCOPES = [MCP_BASELINE_SCOPE, "offline_access"]
+_EXPECTED_HA_SCOPES = [*_EXPECTED_SCOPES, HA_MCP_SCOPE]
 
 if TYPE_CHECKING:
     from httpx import AsyncClient
+
+
+class _AuthorizationServerMetadata(TypedDict):
+    issuer: str
+    registration_endpoint: str
+    scopes_supported: list[str]
+    grant_types_supported: list[str]
+    code_challenge_methods_supported: list[str]
+
+
+class _ClientRegistration(TypedDict):
+    redirect_uris: list[str]
+    scope: str
+    client_id: str
+    client_secret: str
 
 
 async def test__public_mcp_oauth__protected_resource_metadata_is_exposed(
@@ -22,7 +41,7 @@ async def test__public_mcp_oauth__protected_resource_metadata_is_exposed(
     assert response.json() == {
         "resource": f"{_PUBLIC_MCP_BASE_URL}/mcp",
         "authorization_servers": [f"{_PUBLIC_MCP_BASE_URL}/"],
-        "scopes_supported": ["openid", "offline_access"],
+        "scopes_supported": _EXPECTED_SCOPES,
         "bearer_methods_supported": ["header"],
     }
 
@@ -34,10 +53,10 @@ async def test__public_mcp_oauth__authorization_server_metadata_supports_chatgpt
     response = await public_mcp_client.get("/.well-known/oauth-authorization-server")
 
     assert response.status_code == httpx.codes.OK
-    payload = response.json()
+    payload = cast("_AuthorizationServerMetadata", response.json())
     assert payload["issuer"] == f"{_PUBLIC_MCP_BASE_URL}/"
     assert payload["registration_endpoint"] == f"{_PUBLIC_MCP_BASE_URL}/register"
-    assert payload["scopes_supported"] == ["openid", "offline_access"]
+    assert payload["scopes_supported"] == _EXPECTED_SCOPES
     assert "refresh_token" in payload["grant_types_supported"]
     assert payload["code_challenge_methods_supported"] == ["S256"]
 
@@ -47,7 +66,8 @@ async def test__public_mcp_oauth__discovery_uses_host_level_authorization_server
 ) -> None:
     """Protected-resource metadata links to host-level auth-server metadata (not /mcp suffix)."""
     protected = await public_mcp_client.get("/.well-known/oauth-protected-resource/mcp")
-    auth_server_url = protected.json()["authorization_servers"][0]
+    protected_payload = cast("dict[str, list[str]]", protected.json())
+    auth_server_url = protected_payload["authorization_servers"][0]
 
     response = await public_mcp_client.get("/.well-known/oauth-authorization-server")
     suffix_response = await public_mcp_client.get(
@@ -71,13 +91,45 @@ async def test__public_mcp_oauth__dynamic_client_registration_succeeds(
     )
 
     assert response.status_code == httpx.codes.CREATED
-    payload = response.json()
+    payload = cast("_ClientRegistration", response.json())
     assert payload["redirect_uris"] == [
         "https://chatgpt.com/connector/oauth/example",
     ]
-    assert payload["scope"] == "openid offline_access"
+    assert payload["scope"] == " ".join(_EXPECTED_SCOPES)
     assert payload["client_id"]
     assert payload["client_secret"]
+
+
+async def test__public_mcp_oauth__trusted_client_receives_ha_scope(
+    public_mcp_client_with_ha: AsyncClient,
+) -> None:
+    """A ChatGPT redirect URI receives the enabled HA upstream scope."""
+    response = await public_mcp_client_with_ha.post(
+        "/register",
+        json={
+            "redirect_uris": ["https://chatgpt.com/connector/oauth/example"],
+        },
+    )
+
+    assert response.status_code == httpx.codes.CREATED
+    payload = cast("_ClientRegistration", response.json())
+    assert payload["scope"] == " ".join(_EXPECTED_HA_SCOPES)
+
+
+async def test__public_mcp_oauth__untrusted_client_does_not_receive_ha_scope(
+    public_mcp_client_with_ha: AsyncClient,
+) -> None:
+    """A downstream client outside the HA allowlist receives baseline scopes only."""
+    response = await public_mcp_client_with_ha.post(
+        "/register",
+        json={
+            "redirect_uris": ["http://127.0.0.1:6274/oauth/callback/debug"],
+        },
+    )
+
+    assert response.status_code == httpx.codes.CREATED
+    payload = cast("_ClientRegistration", response.json())
+    assert payload["scope"] == " ".join(_EXPECTED_SCOPES)
 
 
 async def test__public_mcp_oauth__unauthenticated_post_mcp_returns_401(
@@ -108,29 +160,27 @@ async def test__public_mcp_oauth__unauthenticated_get_mcp_returns_401_not_405(
     assert response.headers["WWW-Authenticate"].startswith("Bearer ")
 
 
-async def test__public_mcp_oauth__unauthenticated_post_mcp_ha_returns_401(
+async def test__public_mcp_oauth__resource_stays_mcp_when_ha_enabled(
     public_mcp_client_with_ha: AsyncClient,
 ) -> None:
-    """Unauthenticated POST requests to /mcp-ha receive a WWW-Authenticate challenge."""
+    """HA upstream does not move the OAuth protected resource away from /mcp."""
+    response = await public_mcp_client_with_ha.get(
+        "/.well-known/oauth-protected-resource/mcp",
+    )
+
+    assert response.status_code == httpx.codes.OK
+    assert response.json()["resource"] == f"{_PUBLIC_MCP_BASE_URL}/mcp"
+    assert response.json()["scopes_supported"] == _EXPECTED_HA_SCOPES
+
+
+async def test__public_mcp_oauth__unauthenticated_post_mcp_still_401_when_ha_enabled(
+    public_mcp_client_with_ha: AsyncClient,
+) -> None:
+    """Unauthenticated POST /mcp still challenges when HA upstream is mounted."""
     response = await public_mcp_client_with_ha.post(
-        "/mcp-ha",
+        "/mcp",
         json={"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}},
     )
 
     assert response.status_code == httpx.codes.UNAUTHORIZED
     assert "WWW-Authenticate" in response.headers
-    assert response.headers["WWW-Authenticate"].startswith("Bearer ")
-
-
-async def test__public_mcp_oauth__unauthenticated_get_mcp_ha_returns_401(
-    public_mcp_client_with_ha: AsyncClient,
-) -> None:
-    """Unauthenticated GET probes to /mcp-ha receive a WWW-Authenticate challenge."""
-    response = await public_mcp_client_with_ha.get(
-        "/mcp-ha",
-        headers={"Accept": "text/event-stream"},
-    )
-
-    assert response.status_code == httpx.codes.UNAUTHORIZED
-    assert "WWW-Authenticate" in response.headers
-    assert response.headers["WWW-Authenticate"].startswith("Bearer ")
