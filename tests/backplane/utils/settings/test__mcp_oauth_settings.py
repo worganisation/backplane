@@ -72,11 +72,67 @@ def test__settings__parse_mcp_url_fields(
     assert str(parsed) == expected
 
 
-def test__settings__allowed_client_redirect_uri_patterns__chatgpt_defaults() -> None:
-    """Allowed redirect patterns are the built-in ChatGPT DCR patterns."""
+def test__settings__allowed_client_redirect_uri_patterns__defaults_to_empty() -> None:
+    """Allowed redirect patterns are empty unless configured via env."""
     settings = Settings.model_validate({"obsidian_vault_path": "/tmp/vault"})
 
+    assert settings.allowed_client_redirect_uri_patterns == []
+    assert settings.ha_mcp_client_redirect_uri_patterns == ()
+
+
+def test__settings__allowed_client_redirect_uri_patterns__is_configurable() -> None:
+    """A deployment may allow the redirect URIs of any downstream MCP client."""
+    settings = Settings.model_validate(
+        {
+            "obsidian_vault_path": "/tmp/vault",
+            "allowed_client_redirect_uri_patterns": [
+                "https://claude.ai/api/mcp/auth_callback",
+                "https://mcp-client.example/callback",
+            ],
+        },
+    )
+
     assert settings.allowed_client_redirect_uri_patterns == [
-        "https://chatgpt.com/connector/oauth/*",
-        "https://chatgpt.com/connector_platform_oauth_redirect",
+        "https://claude.ai/api/mcp/auth_callback",
+        "https://mcp-client.example/callback",
     ]
+    assert settings.ha_mcp_client_redirect_uri_patterns == (
+        "https://claude.ai/api/mcp/auth_callback",
+        "https://mcp-client.example/callback",
+    )
+
+
+def test__settings__allowed_client_redirect_uri_patterns__reads_json_from_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ALLOWED_CLIENT_REDIRECT_URI_PATTERNS configures both redirect allowlists."""
+    monkeypatch.setenv(
+        "ALLOWED_CLIENT_REDIRECT_URI_PATTERNS",
+        '["https://claude.ai/api/mcp/auth_callback"]',
+    )
+
+    settings = Settings(obsidian_vault_path=AsyncPath("/tmp/vault"))
+
+    assert settings.allowed_client_redirect_uri_patterns == [
+        "https://claude.ai/api/mcp/auth_callback",
+    ]
+    assert settings.ha_mcp_client_redirect_uri_patterns == (
+        "https://claude.ai/api/mcp/auth_callback",
+    )
+
+
+def test__settings__ha_mcp_client_redirect_uri_patterns__can_override_shared_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """HA_MCP_CLIENT_REDIRECT_URI_PATTERNS can set the HA allowlist independently."""
+    monkeypatch.setenv(
+        "HA_MCP_CLIENT_REDIRECT_URI_PATTERNS",
+        '["https://chatgpt.com/connector/oauth/*"]',
+    )
+
+    settings = Settings(obsidian_vault_path=AsyncPath("/tmp/vault"))
+
+    assert settings.ha_mcp_client_redirect_uri_patterns == (
+        "https://chatgpt.com/connector/oauth/*",
+    )
+    assert settings.allowed_client_redirect_uri_patterns == []

@@ -18,22 +18,6 @@ def test__settings__ha_mcp_defaults_are_disabled() -> None:
     assert settings.ha_mcp_namespace == "ha"
 
 
-def test__settings__ha_mcp_accepts_backplane_env_aliases() -> None:
-    """HA MCP settings accept BACKPLANE_HA_MCP_* environment variable names."""
-    settings = Settings.model_validate(
-        {
-            "obsidian_vault_path": AsyncPath("/tmp/vault"),
-            "BACKPLANE_HA_MCP_ENABLED": True,
-            "BACKPLANE_HA_MCP_URL": "http://10.0.0.2:9583/secret-path",
-            "BACKPLANE_HA_MCP_NAMESPACE": "home_assistant",
-        },
-    )
-
-    assert settings.ha_mcp_enabled is True
-    assert settings.ha_mcp_url == "http://10.0.0.2:9583/secret-path"
-    assert settings.ha_mcp_namespace == "home_assistant"
-
-
 def test__require_ha_mcp_url__raises_when_enabled_without_url() -> None:
     """require_ha_mcp_url rejects enabled HA MCP without a URL."""
     settings = Settings.model_validate(

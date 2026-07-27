@@ -131,7 +131,7 @@ This starts the private Home Assistant-compatible SSE server on port `8000`.
 
 This section is generated automatically from the registered MCP surface. Run `prek run update-readme-mcp-catalog` to refresh it after changing tools or resources.
 
-**Server:** `Backplane` v0.6.0
+**Server:** `Backplane` v0.7.0
 
 ### Server instructions
 
@@ -557,9 +557,10 @@ succeed in the browser but ChatGPT reports *"There was a problem connecting …"
 than Authentik, decides which downstream DCR clients may request that optional
 scope. See `deploy/authentik-backplane-mcp.env.example` for the full provider checklist.
 
-ChatGPT redirect patterns (`https://chatgpt.com/connector/oauth/*` and
-`https://chatgpt.com/connector_platform_oauth_redirect`) are already allowed by Backplane;
-you do not add them in Authentik.
+Backplane validates downstream client redirect URIs itself. Configure the JSON
+`MCP_CLIENT_REDIRECT_URI_PATTERNS` allowlist for each client you intend to use
+(for example, ChatGPT's connector redirects or Claude's
+`https://claude.ai/api/mcp/auth_callback`); do not add them in Authentik.
 
 **Plan limits:** Plus / Pro custom connectors are often **read-only**. Tool calls that write to
 Obsidian may require Business, Enterprise, or Edu.

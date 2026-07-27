@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import json
 import zoneinfo
-from typing import Annotated, Final, final
+from typing import Annotated, ClassVar, Final, cast, final
 
 import yarl
 from pydantic import AliasChoices, AnyHttpUrl, BeforeValidator, Field, field_validator
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 from .async_path import AsyncPath
 from .exceptions import UserError
@@ -23,19 +24,45 @@ def _parse_timezone(v: object) -> zoneinfo.ZoneInfo:
         raise ValueError(msg) from exc
 
 
+def _coerce_redirect_uri_patterns(v: object) -> list[str]:
+    if not v:
+        return []
+
+    if isinstance(v, str):
+        stripped = v.strip()
+        if stripped.startswith("["):
+            parsed_unknown = json.loads(stripped)  # pyright: ignore[reportAny]
+            if not isinstance(parsed_unknown, list):
+                msg = "redirect URI patterns must be a JSON list of strings"
+                raise TypeError(msg)
+            return _coerce_redirect_uri_patterns(cast("list[object]", parsed_unknown))
+        return [part.strip() for part in stripped.split(",") if part.strip()]
+
+    if isinstance(v, (list, tuple)):
+        patterns: list[str] = []
+        for item in cast("list[object] | tuple[object, ...]", v):
+            if not isinstance(item, str):
+                msg = f"redirect URI pattern must be a string, got {item!r}"
+                raise TypeError(msg)
+            patterns.append(item)
+        return patterns
+
+    msg = f"invalid redirect URI patterns: {v!r}"
+    raise TypeError(msg)
+
+
 _MCP_OAUTH_REQUIRED_MSG = (
     "Public MCP requires OAuth. Set MCP_PUBLIC_BASE_URL, "
     "MCP_OIDC_CONFIG_URL, MCP_OIDC_CLIENT_ID, and MCP_OIDC_CLIENT_SECRET."
 )
 
-DEFAULT_CHATGPT_REDIRECT_URI_PATTERNS: Final[tuple[str, ...]] = (
-    "https://chatgpt.com/connector/oauth/*",
-    "https://chatgpt.com/connector_platform_oauth_redirect",
-)
-
 
 class Settings(BaseSettings):
     """Settings for the Backplane application."""
+
+    model_config: ClassVar[SettingsConfigDict] = SettingsConfigDict(
+        case_sensitive=False,
+    )
 
     local_timezone: Annotated[
         zoneinfo.ZoneInfo,
@@ -75,11 +102,6 @@ class Settings(BaseSettings):
     ha_mcp_enabled: Annotated[
         bool,
         Field(
-            validation_alias=AliasChoices(
-                "BACKPLANE_HA_MCP_ENABLED",
-                "HA_MCP_ENABLED",
-                "ha_mcp_enabled",
-            ),
             description="Whether to proxy the Home Assistant MCP add-on through Backplane.",
         ),
     ] = False
@@ -87,11 +109,6 @@ class Settings(BaseSettings):
     ha_mcp_url: Annotated[
         str | None,
         Field(
-            validation_alias=AliasChoices(
-                "BACKPLANE_HA_MCP_URL",
-                "HA_MCP_URL",
-                "ha_mcp_url",
-            ),
             description=(
                 "Private LAN URL of the Home Assistant MCP add-on, "
                 "e.g. http://10.0.0.x:9583/<secret-path>."
@@ -101,21 +118,16 @@ class Settings(BaseSettings):
 
     ha_mcp_namespace: Annotated[
         str,
-        Field(
-            validation_alias=AliasChoices(
-                "BACKPLANE_HA_MCP_NAMESPACE",
-                "HA_MCP_NAMESPACE",
-                "ha_mcp_namespace",
-            ),
-            description="Namespace prefix for mounted HA MCP tools.",
-        ),
+        Field(description="Namespace prefix for mounted HA MCP tools."),
     ] = "ha"
 
     ha_mcp_client_redirect_uri_patterns: Annotated[
         tuple[str, ...],
+        BeforeValidator(_coerce_redirect_uri_patterns),
         Field(
             validation_alias=AliasChoices(
-                "BACKPLANE_HA_MCP_CLIENT_REDIRECT_URI_PATTERNS",
+                "ALLOWED_CLIENT_REDIRECT_URI_PATTERNS",
+                "allowed_client_redirect_uri_patterns",
                 "HA_MCP_CLIENT_REDIRECT_URI_PATTERNS",
                 "ha_mcp_client_redirect_uri_patterns",
             ),
@@ -124,7 +136,8 @@ class Settings(BaseSettings):
                 "allowed to receive the Home Assistant MCP scope."
             ),
         ),
-    ] = DEFAULT_CHATGPT_REDIRECT_URI_PATTERNS
+        NoDecode,
+    ] = ()
 
     @field_validator("home_assistant_url", mode="before")
     @classmethod
@@ -206,10 +219,14 @@ class Settings(BaseSettings):
         ),
     ] = None
 
-    @property
-    def allowed_client_redirect_uri_patterns(self) -> list[str]:
-        """Allowed MCP client redirect URI patterns (ChatGPT DCR)."""
-        return list(DEFAULT_CHATGPT_REDIRECT_URI_PATTERNS)
+    allowed_client_redirect_uri_patterns: Annotated[
+        list[str],
+        BeforeValidator(_coerce_redirect_uri_patterns),
+        NoDecode,
+    ] = Field(
+        default_factory=list,
+        description=("Redirect URI patterns permitted for downstream MCP OAuth clients."),
+    )
 
     @property
     def mcp_oauth_configured(self) -> bool:
