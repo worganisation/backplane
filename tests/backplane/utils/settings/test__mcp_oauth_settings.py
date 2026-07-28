@@ -121,6 +121,27 @@ def test__settings__allowed_client_redirect_uri_patterns__reads_json_from_env(
     )
 
 
+def test__settings__allowed_client_redirect_uri_patterns__reads_csv_from_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Comma-separated ALLOWED_CLIENT_REDIRECT_URI_PATTERNS values are accepted."""
+    monkeypatch.setenv(
+        "ALLOWED_CLIENT_REDIRECT_URI_PATTERNS",
+        "https://chatgpt.com/connector/oauth/*,http://localhost:8787/callback",
+    )
+
+    settings = Settings(obsidian_vault_path=AsyncPath("/tmp/vault"))
+
+    assert settings.allowed_client_redirect_uri_patterns == [
+        "https://chatgpt.com/connector/oauth/*",
+        "http://localhost:8787/callback",
+    ]
+    assert settings.ha_mcp_client_redirect_uri_patterns == (
+        "https://chatgpt.com/connector/oauth/*",
+        "http://localhost:8787/callback",
+    )
+
+
 def test__settings__ha_mcp_client_redirect_uri_patterns__can_override_shared_env(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
