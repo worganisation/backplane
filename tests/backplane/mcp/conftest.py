@@ -151,6 +151,11 @@ def public_mcp_http_app_with_ha(
         ha_mcp_enabled=True,
         ha_mcp_url="http://fake-ha-mcp.example.com/mcp",
         ha_mcp_namespace="ha",
+        # Trusted ChatGPT clients receive the HA scope; untrusted localhost
+        # clients in the HTTP OAuth tests stay on baseline scopes only.
+        allowed_client_redirect_uri_patterns=[
+            "https://chatgpt.com/connector/oauth/*",
+        ],
     )
     _ = mocker.patch("backplane.mcp.auth.SETTINGS", settings)
     _ = mocker.patch("backplane.mcp.asgi.SETTINGS", settings)
