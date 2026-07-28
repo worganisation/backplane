@@ -120,8 +120,10 @@ class ScopedClientOIDCProxy(OIDCProxy):
             scope for scope in allowed_scopes if scope in requested_scopes
         )
         logger.info(
-            ("Registering downstream OAuth client with redirect URIs {}: "
-            "requested scopes={!r}, allowed scopes={}, granted scopes={!r}"),
+            (
+                "Registering downstream OAuth client with redirect URIs {}: "
+                "requested scopes={!r}, allowed scopes={}, granted scopes={!r}"
+            ),
             tuple(str(uri) for uri in client_info.redirect_uris or ()),
             requested_scope,
             allowed_scopes,
