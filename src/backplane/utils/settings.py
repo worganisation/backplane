@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import json
 import zoneinfo
-from typing import Annotated, ClassVar, Final, cast, final
+from typing import Annotated, ClassVar, Final, Self, cast, final
 
 import yarl
-from pydantic import AnyHttpUrl, BeforeValidator, Field, field_validator
+from pydantic import AnyHttpUrl, BeforeValidator, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 from .async_path import AsyncPath
@@ -122,21 +122,37 @@ class Settings(BaseSettings):
         Field(description="Namespace prefix for mounted HA MCP tools."),
     ] = "ha"
 
-    # Also accepts MCP_CLIENT_REDIRECT_URI_PATTERNS so the shared DCR allowlist
-    # populates the HA scope allowlist unless HA_MCP_CLIENT_REDIRECT_URI_PATTERNS
-    # is set independently.
     ha_mcp_client_redirect_uri_patterns: Annotated[
         tuple[str, ...],
         BeforeValidator(_coerce_redirect_uri_patterns),
         Field(
-            validation_alias="MCP_CLIENT_REDIRECT_URI_PATTERNS",
             description=(
                 "Redirect URI patterns identifying downstream OAuth clients "
-                "allowed to receive the Home Assistant MCP scope."
+                "allowed to receive the Home Assistant MCP scope. Defaults to "
+                "MCP_CLIENT_REDIRECT_URI_PATTERNS when unset."
             ),
         ),
         NoDecode,
     ] = ()
+
+    @model_validator(mode="after")
+    def _inherit_ha_mcp_redirect_uri_patterns(self) -> Self:
+        """Reuse the shared DCR allowlist for HA scope gating when HA list is unset.
+
+        Returns:
+            Settings with HA redirect patterns inherited when needed.
+        """
+        if (
+            self.ha_mcp_client_redirect_uri_patterns
+            or not self.allowed_client_redirect_uri_patterns
+        ):
+            return self
+        # BaseSettings `__init__` ignores model_validator return values other
+        # than `self`, so mutate in place rather than `model_copy`.
+        self.ha_mcp_client_redirect_uri_patterns = tuple(
+            self.allowed_client_redirect_uri_patterns,
+        )
+        return self
 
     @field_validator("home_assistant_url", mode="before")
     @classmethod

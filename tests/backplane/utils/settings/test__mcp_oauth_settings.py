@@ -96,7 +96,10 @@ def test__settings__allowed_client_redirect_uri_patterns__is_configurable() -> N
         "https://claude.ai/api/mcp/auth_callback",
         "https://mcp-client.example/callback",
     ]
-    assert settings.ha_mcp_client_redirect_uri_patterns == ()
+    assert settings.ha_mcp_client_redirect_uri_patterns == (
+        "https://claude.ai/api/mcp/auth_callback",
+        "https://mcp-client.example/callback",
+    )
 
 
 def test__settings__allowed_client_redirect_uri_patterns__reads_json_from_env(
