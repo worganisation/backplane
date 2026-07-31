@@ -18,6 +18,39 @@ def test__settings__ha_mcp_defaults_are_disabled() -> None:
     assert settings.ha_mcp_namespace == "ha"
 
 
+@pytest.mark.parametrize(
+    ("env_name", "env_value", "field_name", "expected"),
+    [
+        ("HA_MCP_ENABLED", "true", "ha_mcp_enabled", True),
+        (
+            "HA_MCP_URL",
+            "http://10.0.0.2:9583/secret-path",
+            "ha_mcp_url",
+            "http://10.0.0.2:9583/secret-path",
+        ),
+        (
+            "HA_MCP_NAMESPACE",
+            "home",
+            "ha_mcp_namespace",
+            "home",
+        ),
+    ],
+)
+def test__settings__ha_mcp_fields__read_env_vars(
+    monkeypatch: pytest.MonkeyPatch,
+    env_name: str,
+    env_value: str,
+    field_name: str,
+    expected: object,
+) -> None:
+    """HA_MCP_* env names configure HA MCP settings."""
+    monkeypatch.setenv(env_name, env_value)
+
+    settings = Settings(obsidian_vault_path=AsyncPath("/tmp/vault"))
+
+    assert getattr(settings, field_name) == expected
+
+
 def test__require_ha_mcp_url__raises_when_enabled_without_url() -> None:
     """require_ha_mcp_url rejects enabled HA MCP without a URL."""
     settings = Settings.model_validate(
@@ -27,7 +60,7 @@ def test__require_ha_mcp_url__raises_when_enabled_without_url() -> None:
         },
     )
 
-    with pytest.raises(UserError, match="BACKPLANE_HA_MCP_URL"):
+    with pytest.raises(UserError, match="HA_MCP_URL"):
         settings.require_ha_mcp_url()
 
 

@@ -96,18 +96,15 @@ def test__settings__allowed_client_redirect_uri_patterns__is_configurable() -> N
         "https://claude.ai/api/mcp/auth_callback",
         "https://mcp-client.example/callback",
     ]
-    assert settings.ha_mcp_client_redirect_uri_patterns == (
-        "https://claude.ai/api/mcp/auth_callback",
-        "https://mcp-client.example/callback",
-    )
+    assert settings.ha_mcp_client_redirect_uri_patterns == ()
 
 
 def test__settings__allowed_client_redirect_uri_patterns__reads_json_from_env(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """ALLOWED_CLIENT_REDIRECT_URI_PATTERNS configures both redirect allowlists."""
+    """MCP_CLIENT_REDIRECT_URI_PATTERNS configures both redirect allowlists."""
     monkeypatch.setenv(
-        "ALLOWED_CLIENT_REDIRECT_URI_PATTERNS",
+        "MCP_CLIENT_REDIRECT_URI_PATTERNS",
         '["https://claude.ai/api/mcp/auth_callback"]',
     )
 
@@ -124,9 +121,9 @@ def test__settings__allowed_client_redirect_uri_patterns__reads_json_from_env(
 def test__settings__allowed_client_redirect_uri_patterns__reads_csv_from_env(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Comma-separated ALLOWED_CLIENT_REDIRECT_URI_PATTERNS values are accepted."""
+    """Comma-separated MCP_CLIENT_REDIRECT_URI_PATTERNS values are accepted."""
     monkeypatch.setenv(
-        "ALLOWED_CLIENT_REDIRECT_URI_PATTERNS",
+        "MCP_CLIENT_REDIRECT_URI_PATTERNS",
         "https://chatgpt.com/connector/oauth/*,http://localhost:8787/callback",
     )
 
@@ -145,7 +142,7 @@ def test__settings__allowed_client_redirect_uri_patterns__reads_csv_from_env(
 def test__settings__ha_mcp_client_redirect_uri_patterns__can_override_shared_env(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """HA_MCP_CLIENT_REDIRECT_URI_PATTERNS can set the HA allowlist independently."""
+    """HA_MCP_CLIENT_REDIRECT_URI_PATTERNS overrides the shared allowlist."""
     monkeypatch.setenv(
         "HA_MCP_CLIENT_REDIRECT_URI_PATTERNS",
         '["https://chatgpt.com/connector/oauth/*"]',

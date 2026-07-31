@@ -7,7 +7,7 @@ import zoneinfo
 from typing import Annotated, ClassVar, Final, cast, final
 
 import yarl
-from pydantic import AliasChoices, AnyHttpUrl, BeforeValidator, Field, field_validator
+from pydantic import AnyHttpUrl, BeforeValidator, Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 from .async_path import AsyncPath
@@ -62,6 +62,7 @@ class Settings(BaseSettings):
 
     model_config: ClassVar[SettingsConfigDict] = SettingsConfigDict(
         case_sensitive=False,
+        populate_by_name=True,
     )
 
     local_timezone: Annotated[
@@ -121,16 +122,14 @@ class Settings(BaseSettings):
         Field(description="Namespace prefix for mounted HA MCP tools."),
     ] = "ha"
 
+    # Also accepts MCP_CLIENT_REDIRECT_URI_PATTERNS so the shared DCR allowlist
+    # populates the HA scope allowlist unless HA_MCP_CLIENT_REDIRECT_URI_PATTERNS
+    # is set independently.
     ha_mcp_client_redirect_uri_patterns: Annotated[
         tuple[str, ...],
         BeforeValidator(_coerce_redirect_uri_patterns),
         Field(
-            validation_alias=AliasChoices(
-                "ALLOWED_CLIENT_REDIRECT_URI_PATTERNS",
-                "allowed_client_redirect_uri_patterns",
-                "HA_MCP_CLIENT_REDIRECT_URI_PATTERNS",
-                "ha_mcp_client_redirect_uri_patterns",
-            ),
+            validation_alias="MCP_CLIENT_REDIRECT_URI_PATTERNS",
             description=(
                 "Redirect URI patterns identifying downstream OAuth clients "
                 "allowed to receive the Home Assistant MCP scope."
@@ -225,6 +224,7 @@ class Settings(BaseSettings):
         NoDecode,
     ] = Field(
         default_factory=list,
+        validation_alias="MCP_CLIENT_REDIRECT_URI_PATTERNS",
         description=("Redirect URI patterns permitted for downstream MCP OAuth clients."),
     )
 
@@ -287,9 +287,7 @@ class Settings(BaseSettings):
             msg = "HA MCP upstream is disabled."
             raise UserError(message=msg)
         if url is None or not url.strip():
-            msg = (
-                "BACKPLANE_HA_MCP_URL is required when BACKPLANE_HA_MCP_ENABLED is true."
-            )
+            msg = "HA_MCP_URL is required when HA_MCP_ENABLED is true."
             raise UserError(message=msg)
         return url.strip()
 

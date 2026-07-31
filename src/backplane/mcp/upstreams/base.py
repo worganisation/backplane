@@ -135,7 +135,7 @@ def _assert_namespace_available(mcp: FastMCP[None], namespace: str) -> None:
     """
     prefix = f"{namespace}_"
     components = (
-        mcp.local_provider._components.values()  # ruff:ignore[private-member-access]  # pyright: ignore[reportPrivateUsage]
+        mcp.local_provider._components.values()  # ruff: ignore[private-member-access]  # pyright: ignore[reportPrivateUsage]
     )
     collisions = sorted(
         component.name

@@ -70,7 +70,7 @@ def test__get_enabled_upstreams__requires_url_when_ha_enabled(
     """Enabled HA proxying rejects a missing upstream URL."""
     settings = ha_upstream_settings.model_copy(update={"ha_mcp_url": None})
 
-    with pytest.raises(UserError, match="BACKPLANE_HA_MCP_URL"):
+    with pytest.raises(UserError, match="HA_MCP_URL"):
         _ = get_enabled_upstreams(settings)
 
 

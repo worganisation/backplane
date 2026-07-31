@@ -455,10 +455,10 @@ reach the add-on URL on `:9583` directly.
 
 | Variable | Description |
 | --- | --- |
-| `BACKPLANE_HA_MCP_ENABLED` | Set to `true` to mount the HA MCP add-on upstream |
-| `BACKPLANE_HA_MCP_URL` | Private LAN URL from the add-on logs, e.g. `http://10.0.0.x:9583/<secret-path>` |
-| `BACKPLANE_HA_MCP_NAMESPACE` | Tool namespace prefix (default: `ha`) |
-| `BACKPLANE_HA_MCP_CLIENT_REDIRECT_URI_PATTERNS` | JSON list of downstream OAuth redirect patterns allowed to receive the HA scope (defaults to ChatGPT only) |
+| `HA_MCP_ENABLED` | Set to `true` to mount the HA MCP add-on upstream |
+| `HA_MCP_URL` | Private LAN URL from the add-on logs, e.g. `http://10.0.0.x:9583/<secret-path>` |
+| `HA_MCP_NAMESPACE` | Tool namespace prefix (default: `ha`) |
+| `HA_MCP_CLIENT_REDIRECT_URI_PATTERNS` | JSON list of downstream OAuth redirect patterns allowed to receive the HA scope (defaults to empty; inherits from `MCP_CLIENT_REDIRECT_URI_PATTERNS` when that is set) |
 
 When enabled:
 
@@ -467,17 +467,17 @@ When enabled:
   visible when the access token includes the
   **`backplane.home-assistant`** scope. During dynamic client registration,
   Backplane grants that scope only when every registered redirect URI matches
-  `BACKPLANE_HA_MCP_CLIENT_REDIRECT_URI_PATTERNS`.
+  `HA_MCP_CLIENT_REDIRECT_URI_PATTERNS`.
   Other public MCP clients with just `openid` keep Backplane components without
   contacting the HA add-on.
 - **Private server (`:8000`)** — switches from SSE to streamable HTTP and serves
   `/mcp` (Backplane only) plus `/mcp-ha` (Backplane + HA). Update any LAN MCP
   client URLs accordingly.
 
-Rollout: deploy with `BACKPLANE_HA_MCP_ENABLED=false` first, confirm the add-on
+Rollout: deploy with `HA_MCP_ENABLED=false` first, confirm the add-on
 URL is reachable from the Backplane host (for example with `curl`), then set
-`BACKPLANE_HA_MCP_ENABLED=true` and restart. Roll back by setting
-`BACKPLANE_HA_MCP_ENABLED=false`.
+`HA_MCP_ENABLED=true` and restart. Roll back by setting
+`HA_MCP_ENABLED=false`.
 
 Do **not** expose the HA MCP add-on port `:9583` on your public reverse proxy.
 
