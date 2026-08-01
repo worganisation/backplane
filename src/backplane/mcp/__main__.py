@@ -10,8 +10,7 @@ from loguru import logger
 
 from backplane import __version__
 from backplane.mcp import create_mcp_server
-from backplane.mcp.asgi import compose_private_mcp_app
-from backplane.utils.settings import SETTINGS
+from backplane.mcp.asgi import compose_private_app
 
 if TYPE_CHECKING:
     from fastmcp import FastMCP
@@ -32,24 +31,18 @@ def create_private_mcp_server() -> FastMCP[None]:
 def main() -> None:
     """Run the private MCP server until interrupted."""
     logger.info("Starting Backplane MCP server v{} on {}:{}", __version__, _HOST, _PORT)
-
-    if SETTINGS.ha_mcp_enabled:
-        logger.info("HA MCP upstream enabled; serving HTTP /mcp and /mcp-ha")
-        app = compose_private_mcp_app()
-        uvloop.run(
-            uvicorn.Server(
-                uvicorn.Config(
-                    app,
-                    host=_HOST,
-                    port=_PORT,
-                    log_level="info",
-                ),
-            ).serve(),
-        )
-        return
-
-    mcp = create_private_mcp_server()
-    uvloop.run(mcp.run_async(transport="sse", host=_HOST, port=_PORT))
+    logger.info("Serving private REST API at /api alongside MCP SSE")
+    app = compose_private_app()
+    uvloop.run(
+        uvicorn.Server(
+            uvicorn.Config(
+                app,
+                host=_HOST,
+                port=_PORT,
+                log_level="info",
+            ),
+        ).serve(),
+    )
 
 
 if __name__ == "__main__":

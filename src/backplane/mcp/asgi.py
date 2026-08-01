@@ -6,8 +6,9 @@ from contextlib import AsyncExitStack, asynccontextmanager
 from typing import TYPE_CHECKING
 
 from fastmcp.server.http import StarletteWithLifespan
-from starlette.routing import BaseRoute, Route
+from starlette.routing import BaseRoute, Mount, Route
 
+from backplane.api.app import create_api_app
 from backplane.mcp.app_factory import build_backplane_mcp
 from backplane.mcp.auth import create_public_mcp_auth
 from backplane.mcp.upstreams import get_enabled_upstreams, mount_upstream
@@ -42,9 +43,7 @@ def _upstream_mcp_route(
     return None
 
 
-def _combine_lifespans(
-    *apps: StarletteWithLifespan,
-) -> Lifespan[Starlette]:
+def _combine_lifespans(*apps: Starlette) -> Lifespan[Starlette]:
     """Return a Starlette lifespan that runs each MCP app lifespan in order."""
 
     @asynccontextmanager
@@ -87,6 +86,23 @@ def _compose_mcp_apps(
         routes=routes,
         middleware=core_app.user_middleware,
         lifespan=_combine_lifespans(*apps),
+    )
+
+
+def _compose_private_apps(
+    *,
+    mcp_app: StarletteWithLifespan,
+) -> StarletteWithLifespan:
+    """Mount the REST API alongside an already composed private MCP application.
+
+    Returns:
+        Combined private ASGI application.
+    """
+    api_app = create_api_app()
+    return StarletteWithLifespan(
+        routes=[Mount("/api", app=api_app), *mcp_app.routes],
+        middleware=mcp_app.user_middleware,
+        lifespan=_combine_lifespans(mcp_app, api_app),
     )
 
 
@@ -136,3 +152,20 @@ def compose_private_mcp_app() -> StarletteWithLifespan:
         core_app=core_app,
         upstream_apps=upstream_apps,
     )
+
+
+def compose_private_app() -> StarletteWithLifespan:
+    """Build the private REST and MCP ASGI application.
+
+    Returns:
+        An ASGI app exposing REST operations under ``/api`` and retaining the
+        configured private MCP transport: SSE at ``/sse`` when HA proxying is
+        disabled, or streamable HTTP at ``/mcp`` with ``/mcp-ha`` when enabled.
+    """
+    if SETTINGS.ha_mcp_enabled:
+        mcp_app = compose_private_mcp_app()
+    else:
+        mcp_app = build_backplane_mcp(notify_home_assistant=True).http_app(
+            transport="sse",
+        )
+    return _compose_private_apps(mcp_app=mcp_app)

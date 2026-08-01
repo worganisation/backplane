@@ -27,7 +27,8 @@ PUT /file/foo.md
 POST /do_thing
 ```
 
-MCP support is planned as an adapter layer on top of the REST API — not as the core architecture. This keeps Home Assistant integration, debugging, and testing simpler.
+MCP and REST are separate adapter layers over the shared service layer. REST handlers
+must call services directly; they must not proxy the Home Assistant MCP passthrough.
 
 ## Commands
 
@@ -42,56 +43,35 @@ uv run yamllint .                # YAML lint
 uv run codespell                 # spell check
 ```
 
-Run the server locally:
+Run the private server locally:
 
 ```bash
-python src/backplane/api/main.py
-# or
-python -m uvicorn backplane.api.main:app --host 0.0.0.0 --port 8000
+python -m backplane.mcp
 ```
 
-Run via Docker:
-
-```bash
-docker-compose up
-```
-
-No test suite is configured yet.
+This serves the private REST API under `/api`. The MCP transport remains SSE when HA
+proxying is disabled, and remains streamable HTTP at `/mcp` with `/mcp-ha` when enabled.
 
 ## Architecture
-
-### Planned module layout
-
-```text
-src/backplane/
-├── api/           # FastAPI app and route handlers (semantic HTTP interface)
-├── core/          # Shared internals
-├── services/      # Low-level service wrappers (file I/O, HTTP clients, etc.)
-├── documents/     # Semantic markdown abstractions (MarkdownDocument, sections)
-├── integrations/  # Per-service integration logic (Obsidian, Home Assistant, …)
-├── tools/         # Reusable LLM-facing tool definitions
-├── mcp/           # MCP adapter (wraps REST operations into MCP tools)
-├── automations/   # Automation workflows
-└── agents/        # Multi-agent orchestration
-```
 
 ### Current state
 
 ```text
 src/backplane/
 ├── api/
-│   ├── main.py              # FastAPI app, health check, router inclusion
-│   ├── Dockerfile           # Multi-stage build
-│   └── routes/
-│       └── obsidian/
-│           └── route.py     # GET/PATCH /obsidian/daily-note
+│   └── app.py               # FastAPI vault API mounted at /api
+├── mcp/
+│   ├── __main__.py          # private ASGI server entrypoint
+│   ├── asgi.py              # combines REST, private MCP SSE, and upstream routes
+│   └── upstreams/           # optional HA MCP passthrough
 ├── services/
-│   └── obsidian.py          # ObsidianService — daily note context manager,
-│                            # template loading, moment.js date substitution
+│   ├── obsidian.py          # daily notes, ideas, and note moves
+│   ├── tasks.py             # structured task notes
+│   ├── vault_entities.py    # Domains, People, Projects, and Resources
+│   └── vault_search.py      # title and content discovery
 └── utils/
     ├── markdown.py          # MarkdownDocument, MarkdownSection, frontmatter parsing
-    ├── helpers.py           # today(), format_human_date(), format_obsidian_moment_date()
-    └── settings.py          # pydantic-settings config (OBSIDIAN_VAULT_PATH)
+    └── settings.py          # pydantic-settings configuration
 ```
 
 ### Key design patterns
@@ -112,11 +92,14 @@ src/backplane/
 
 ### API endpoints
 
-| Method  | Path                    | Description                                    |
-| ------- | ----------------------- | ---------------------------------------------- |
-| `GET`   | `/health/check`         | Container health check                         |
-| `GET`   | `/obsidian/daily-note`  | Read today's (or a given date's) daily note    |
-| `PATCH` | `/obsidian/daily-note`  | Update a section (append / prepend / replace)  |
+The private FastAPI app is mounted at `/api`; its OpenAPI documentation is available
+at `/api/docs`. It exposes health, daily note, idea, note-move, task, vault entity, and
+vault search operations. Route handlers call `services/` directly rather than MCP tool
+wrappers.
+
+The API deliberately has no Home Assistant passthrough endpoints. The optional
+`/mcp-ha` route remains MCP-only; the core private MCP transport remains available
+alongside `/api` in its configured SSE or streamable-HTTP mode.
 
 ## Tooling Notes
 
