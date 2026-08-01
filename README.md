@@ -131,7 +131,7 @@ This starts the private Home Assistant-compatible SSE server on port `8000`.
 
 This section is generated automatically from the registered MCP surface. Run `prek run update-readme-mcp-catalog` to refresh it after changing tools or resources.
 
-**Server:** `Backplane` v0.6.0
+**Server:** `Backplane` v0.7.0
 
 ### Server instructions
 
@@ -455,10 +455,10 @@ reach the add-on URL on `:9583` directly.
 
 | Variable | Description |
 | --- | --- |
-| `BACKPLANE_HA_MCP_ENABLED` | Set to `true` to mount the HA MCP add-on upstream |
-| `BACKPLANE_HA_MCP_URL` | Private LAN URL from the add-on logs, e.g. `http://10.0.0.x:9583/<secret-path>` |
-| `BACKPLANE_HA_MCP_NAMESPACE` | Tool namespace prefix (default: `ha`) |
-| `BACKPLANE_HA_MCP_CLIENT_REDIRECT_URI_PATTERNS` | JSON list of downstream OAuth redirect patterns allowed to receive the HA scope (defaults to ChatGPT only) |
+| `HA_MCP_ENABLED` | Set to `true` to mount the HA MCP add-on upstream |
+| `HA_MCP_URL` | Private LAN URL from the add-on logs, e.g. `http://10.0.0.x:9583/<secret-path>` |
+| `HA_MCP_NAMESPACE` | Tool namespace prefix (default: `ha`) |
+| `HA_MCP_CLIENT_REDIRECT_URI_PATTERNS` | JSON list of downstream OAuth redirect patterns allowed to receive the HA scope (defaults to empty; inherits from `MCP_CLIENT_REDIRECT_URI_PATTERNS` when that is set) |
 
 When enabled:
 
@@ -467,17 +467,17 @@ When enabled:
   visible when the access token includes the
   **`backplane.home-assistant`** scope. During dynamic client registration,
   Backplane grants that scope only when every registered redirect URI matches
-  `BACKPLANE_HA_MCP_CLIENT_REDIRECT_URI_PATTERNS`.
+  `HA_MCP_CLIENT_REDIRECT_URI_PATTERNS`.
   Other public MCP clients with just `openid` keep Backplane components without
   contacting the HA add-on.
 - **Private server (`:8000`)** — switches from SSE to streamable HTTP and serves
   `/mcp` (Backplane only) plus `/mcp-ha` (Backplane + HA). Update any LAN MCP
   client URLs accordingly.
 
-Rollout: deploy with `BACKPLANE_HA_MCP_ENABLED=false` first, confirm the add-on
+Rollout: deploy with `HA_MCP_ENABLED=false` first, confirm the add-on
 URL is reachable from the Backplane host (for example with `curl`), then set
-`BACKPLANE_HA_MCP_ENABLED=true` and restart. Roll back by setting
-`BACKPLANE_HA_MCP_ENABLED=false`.
+`HA_MCP_ENABLED=true` and restart. Roll back by setting
+`HA_MCP_ENABLED=false`.
 
 Do **not** expose the HA MCP add-on port `:9583` on your public reverse proxy.
 
@@ -557,9 +557,10 @@ succeed in the browser but ChatGPT reports *"There was a problem connecting …"
 than Authentik, decides which downstream DCR clients may request that optional
 scope. See `deploy/authentik-backplane-mcp.env.example` for the full provider checklist.
 
-ChatGPT redirect patterns (`https://chatgpt.com/connector/oauth/*` and
-`https://chatgpt.com/connector_platform_oauth_redirect`) are already allowed by Backplane;
-you do not add them in Authentik.
+Backplane validates downstream client redirect URIs itself. Configure the JSON
+`MCP_CLIENT_REDIRECT_URI_PATTERNS` allowlist for each client you intend to use
+(for example, ChatGPT's connector redirects or Claude's
+`https://claude.ai/api/mcp/auth_callback`); do not add them in Authentik.
 
 **Plan limits:** Plus / Pro custom connectors are often **read-only**. Tool calls that write to
 Obsidian may require Business, Enterprise, or Edu.

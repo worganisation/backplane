@@ -114,9 +114,20 @@ class ScopedClientOIDCProxy(OIDCProxy):
     ) -> None:
         """Register a downstream client with only its entitled scopes."""
         allowed_scopes = self._allowed_scopes(client_info)
-        requested_scopes = set((client_info.scope or " ".join(allowed_scopes)).split())
+        requested_scope = client_info.scope
+        requested_scopes = set((requested_scope or " ".join(allowed_scopes)).split())
         client_info.scope = " ".join(
             scope for scope in allowed_scopes if scope in requested_scopes
+        )
+        logger.info(
+            (
+                "Registering downstream OAuth client with redirect URIs {}: "
+                "requested scopes={!r}, allowed scopes={}, granted scopes={!r}"
+            ),
+            tuple(str(uri) for uri in client_info.redirect_uris or ()),
+            requested_scope,
+            allowed_scopes,
+            client_info.scope,
         )
         await super().register_client(client_info)
 
