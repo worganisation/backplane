@@ -1,8 +1,7 @@
 ---
-name: Unit Tests
+name: Prek Hooks
 
 on:
-  workflow_dispatch:
   merge_group:
   push:
     branches:
@@ -15,16 +14,13 @@ on:
       - ready_for_review
 
 concurrency:
-  group: unit-tests-${{ github.ref }}
+  group: prek-hooks-${{ github.ref }}
   cancel-in-progress: true
 
-permissions:
-  contents: read
-
 jobs:
-  unit-tests:
-    name: Unit Tests
-    uses: worgarside/github-config-files/.github/workflows/__unit-tests.yml@main
+  prek:
+    name: Prek Hooks
+    uses: worgarside/github-config-files/.github/workflows/__prek-hooks.yml@main
     with:
       python-version: '3.14'
     secrets: inherit
