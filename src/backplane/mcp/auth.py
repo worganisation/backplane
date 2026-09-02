@@ -231,7 +231,9 @@ def create_public_mcp_auth() -> AuthProvider:
         client_secret=client_secret,
         base_url=public_base_url,
         require_authorization_consent="external",
-        allowed_client_redirect_uris=SETTINGS.allowed_client_redirect_uri_patterns,
+        allowed_client_redirect_uris=(
+            SETTINGS.allowed_client_redirect_uri_patterns or None
+        ),
         token_verifier=token_verifier,
     )
     auth_provider.configure_client_scope_policy(
