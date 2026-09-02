@@ -8,7 +8,7 @@ import io
 import operator
 from dataclasses import dataclass
 from functools import cache
-from typing import TYPE_CHECKING, Annotated, Final, Literal, cast, final
+from typing import Annotated, Final, Literal, final
 
 from loguru import logger
 from pydantic import BaseModel, Field
@@ -37,10 +37,6 @@ from backplane.utils import (
 )
 from backplane.utils.kanban import append_board_card
 from backplane.utils.markdown import note_title_from_markdown
-
-if TYPE_CHECKING:
-    from pydantic_ai.usage import RunUsage
-
 
 _INBOX_DAYS: Final = 30
 _SCORE_AUTO: Final = 70.0
@@ -315,7 +311,7 @@ def _truncate_for_log(text: str, *, max_len: int = _LOG_TEXT_MAX_LEN) -> str:
 
 def _log_metadata_agent_run(result: AgentRunResult[TaskMetadata]) -> None:
     """Log token usage and estimated cost for a metadata extraction run."""
-    usage = cast("RunUsage", result.usage)
+    usage = result.usage
     model_name = result.response.model_name or SETTINGS.task_metadata_model
     logger.info(
         (
