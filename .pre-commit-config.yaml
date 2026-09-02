@@ -97,7 +97,7 @@ repos:
           - pydantic==2.13.5
           - pydantic-ai==1.106.0
           - pydantic-settings==2.15.0
-          - pytest==9.0.3
+          - pytest==9.1.1
           - pytest-asyncio==1.4.0
           - pytest-mock==3.15.1
           - rapidfuzz==3.14.5
