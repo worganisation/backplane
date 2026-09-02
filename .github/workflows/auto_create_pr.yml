@@ -18,4 +18,5 @@ jobs:
       pr-title: ${{ github.event.head_commit.message }}
       pr-draft: true
       update-pr-body-if-exists: true
-    secrets: inherit
+    secrets:
+      WORGARSIDE_DEV_TOKEN: ${{ secrets.WORGARSIDE_DEV_TOKEN }}
