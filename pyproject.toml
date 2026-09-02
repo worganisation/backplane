@@ -13,7 +13,7 @@ readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "aiohttp>=3.14.3",
-    "fastmcp>=3.4.7",
+    "fastmcp>=3.4.7,<4",
     "loguru>=0.7.3",
     "markdown-it-py>=4.2.0",
     "mdformat>=1.0.0",
