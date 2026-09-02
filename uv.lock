@@ -229,7 +229,7 @@ requires-dist = [
     { name = "mdformat-gfm", specifier = ">=1.0.0" },
     { name = "mdformat-wikilink", specifier = ">=0.3.0" },
     { name = "pydantic", specifier = ">=2.10" },
-    { name = "pydantic-ai", specifier = ">=1.102.0" },
+    { name = "pydantic-ai", specifier = ">=1.106.0" },
     { name = "pydantic-settings", specifier = ">=2.14.2" },
     { name = "rapidfuzz", specifier = ">=3.0" },
     { name = "ruamel-yaml", specifier = ">=0.19.1" },
