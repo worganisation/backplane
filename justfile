@@ -34,6 +34,17 @@ _mcp-public-restart:
         echo "Public MCP server started (PID $!), logging to /tmp/backplane-public-mcp.log"
     fi
 
+# Apply context-capture migrations when persistence is configured
+[private]
+_context-migrate:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ -z "${CONTEXT_DATABASE_URL:-}" ]]; then
+        echo "Context database is not configured; skipping Alembic migrations."
+        exit 0
+    fi
+    uv run alembic upgrade head
+
 # Start or restart the private MCP server
 mcp-start:
     just _mcp-restart
@@ -99,6 +110,7 @@ deploy tag:
     git fetch --tags origin
     git reset --hard {{ tag }}
     uv sync --frozen --no-dev
+    just _context-migrate
     just _mcp-restart
     if systemctl is-enabled backplane-public.service &>/dev/null; then just _mcp-public-restart; fi
 
@@ -108,6 +120,7 @@ checkout branch="main":
     git checkout {{ branch }}
     git pull
     uv sync --no-dev
+    just _context-migrate
     just _mcp-restart
     if systemctl is-enabled backplane-public.service &>/dev/null; then just _mcp-public-restart; fi
 

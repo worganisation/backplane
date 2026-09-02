@@ -11,11 +11,29 @@ OB_BIN="$(command -v ob || echo /usr/local/bin/ob)"
 INSTALL_PUBLIC_MCP="${INSTALL_PUBLIC_MCP:-false}"
 ENV_FILE="${INSTALL_DIR}/.env"
 
+load_environment() {
+    if [[ -f "${ENV_FILE}" ]]; then
+        set -a
+        # shellcheck disable=SC1090
+        source "${ENV_FILE}"
+        set +a
+    fi
+}
+
+run_context_migrations() {
+    if [[ -z "${CONTEXT_DATABASE_URL:-}" ]]; then
+        echo "Context database is not configured; skipping Alembic migrations."
+        return
+    fi
+    "$UV_BIN" run alembic upgrade head
+}
+
 # Install uv if not present
 if ! command -v uv &>/dev/null; then
     curl -LsSf https://astral.sh/uv/install.sh | sh
 fi
 UV_BIN="$(command -v uv 2>/dev/null || echo "$HOME/.local/bin/uv")"
+load_environment
 
 validate_public_mcp_oauth_config() {
     if [[ ! -f "${ENV_FILE}" ]]; then
@@ -66,6 +84,7 @@ install_public_mcp_systemd_units() {
 cd "$INSTALL_DIR"
 "$UV_BIN" python install 3.14
 "$UV_BIN" sync --frozen --no-dev
+run_context_migrations
 
 install -d -o "${SERVICE_USER}" -m 0755 "${LOG_DIR}"
 
