@@ -231,7 +231,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.13.5" },
     { name = "pydantic-ai", specifier = ">=1.106.0" },
     { name = "pydantic-settings", specifier = ">=2.15.0" },
-    { name = "rapidfuzz", specifier = ">=3.0" },
+    { name = "rapidfuzz", specifier = ">=3.14.5" },
     { name = "ruamel-yaml", specifier = ">=0.19.1" },
     { name = "uvicorn", specifier = ">=0.52.4" },
     { name = "uvloop", specifier = ">=0.22.1" },
