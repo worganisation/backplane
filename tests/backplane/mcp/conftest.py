@@ -155,7 +155,9 @@ def public_mcp_http_app_with_ha(
         # clients in the HTTP OAuth tests stay on baseline scopes only.
         allowed_client_redirect_uri_patterns=[
             "https://chatgpt.com/connector/oauth/*",
+            "http://127.0.0.1:6274/oauth/callback/debug",
         ],
+        ha_mcp_client_redirect_uri_patterns=("https://chatgpt.com/connector/oauth/*",),
     )
     _ = mocker.patch("backplane.mcp.auth.SETTINGS", settings)
     _ = mocker.patch("backplane.mcp.asgi.SETTINGS", settings)
