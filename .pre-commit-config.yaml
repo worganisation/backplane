@@ -95,7 +95,7 @@ repos:
           - mdformat==1.0.0
           - mdformat-gfm==1.0.0
           - pydantic==2.13.5
-          - pydantic-ai==1.106.0
+          - pydantic-ai==2.37.0
           - pydantic-settings==2.15.0
           - pytest==9.1.1
           - pytest-asyncio==1.4.0
