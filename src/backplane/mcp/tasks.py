@@ -52,8 +52,8 @@ class CreateTaskToolResponse(TaskCreationOutcome, frozen=True):
 def _build_create_task_messages(task: TaskCreationOutcome) -> list[str]:
     """Generate follow-up messages based on capture matching results from task creation.
 
-    Parameters:
-        task (CreateTaskResult): The result of task creation, containing match and candidate capture information.
+    Args:
+        task: Task creation outcome containing match and candidate capture information.
 
     Returns:
         list[str]: Follow-up messages describing capture match status. When a capture

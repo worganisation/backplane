@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import datetime as dt  # ruff:ignore[typing-only-standard-library-import]  # FastAPI resolves this annotation at runtime
 
 from fastapi import APIRouter, status
 
@@ -19,9 +19,6 @@ from backplane.operations.daily_notes import (
     update_daily_note_section,
 )
 from backplane.utils import today
-
-if TYPE_CHECKING:
-    import datetime as dt
 
 router = APIRouter(tags=["daily notes"])
 

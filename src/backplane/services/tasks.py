@@ -29,6 +29,7 @@ from backplane.utils import (
     build_obsidian_link,
     build_vault_note_metadata,
     enums,
+    exc,
     note_filename,
     obsidian_link_target_from_path,
     resolve_under_root,
@@ -1182,6 +1183,9 @@ class TaskService:
 
         Returns:
             Concise confirmation of the linking outcome.
+
+        Raises:
+            NotFoundError: If the capture or task cannot be found.
         """
         captures = await _load_all_captures()
         capture = _find_capture_by_id(captures, capture_id)
@@ -1191,8 +1195,10 @@ class TaskService:
                 capture_id,
                 task_slug,
             )
-            return (
-                f"Capture {capture_id} was not found; task {task_slug} was not changed."
+            msg = f"Capture {capture_id!r} not found."
+            raise exc.NotFoundError(
+                message=msg,
+                detail={"resource": "capture", "id": capture_id},
             )
 
         resolved = await _resolve_task_reference(task_slug)
@@ -1202,19 +1208,27 @@ class TaskService:
                 task_slug,
                 capture_id,
             )
-            return f"Task {task_slug} was not found; capture {capture_id} was not linked."
+            msg = f"Task {task_slug!r} not found."
+            raise exc.NotFoundError(
+                message=msg,
+                detail={"resource": "task", "id": task_slug},
+            )
 
         task_path, _link_target = resolved
         try:
             async with MarkdownDocument(vault_path=task_path) as task:
                 task.frontmatter["source_capture"] = capture.id
-        except FileNotFoundError:
+        except FileNotFoundError as error:
             logger.warning(
                 "Task {} not found while linking capture {}",
                 task_path,
                 capture_id,
             )
-            return f"Task {task_path} was not found; capture {capture_id} was not linked."
+            msg = f"Task {task_slug!r} not found."
+            raise exc.NotFoundError(
+                message=msg,
+                detail={"resource": "task", "id": task_slug},
+            ) from error
 
         await _annotate_capture(capture, build_obsidian_link(task_path))
         logger.info("Linked task {} to capture {}", task_path, capture_id)

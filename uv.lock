@@ -223,7 +223,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "aiohttp", specifier = ">=3.14.3" },
-    { name = "fastapi" },
+    { name = "fastapi", specifier = ">=0.141.1" },
     { name = "fastmcp", specifier = ">=3.3.1" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "markdown-it-py", specifier = ">=4.2.0" },
