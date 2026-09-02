@@ -27,10 +27,14 @@ dependencies = [
     "uvicorn>=0.46.0",
     "uvloop>=0.22.1",
     "mdformat-wikilink>=0.3.0",
+    "sqlalchemy[asyncio]>=2.0.48",
+    "asyncpg>=0.31.0",
+    "alembic>=1.18.0",
 ]
 
 [dependency-groups]
 dev = [
+    "aiosqlite>=0.22.1",
     "basedpyright>=1.39.7",
     "diff-cover>=10.2.0",
     "pytest>=8.0",

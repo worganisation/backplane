@@ -34,6 +34,21 @@ $EDITOR .env
 
 Set `OBSIDIAN_VAULT_PATH` to the local path where the vault will be synced.
 
+Context capture is optional for existing vault-only deployments. To enable it, provision a
+PostgreSQL database and set:
+
+- `CONTEXT_DATABASE_URL` to an async SQLAlchemy URL such as
+  `postgresql+asyncpg://backplane:password@postgres/backplane`
+- `CONTEXT_API_TOKEN` to a high-entropy secret used only for context REST requests
+
+Both values are treated as secrets and redacted from settings representations. `setup.sh` and
+the `just deploy`/`just checkout` workflows apply Alembic migrations automatically when
+`CONTEXT_DATABASE_URL` is set. For local development, run:
+
+```bash
+uv run alembic upgrade head
+```
+
 If you plan to run the public ChatGPT-facing MCP service, also configure the
 OAuth variables documented in `.env.example` before running setup with
 `INSTALL_PUBLIC_MCP=true`. See `deploy/authentik-backplane-mcp.env.example`
@@ -136,6 +151,21 @@ documentation is at `/api/docs`, with the OpenAPI schema at `/api/openapi.json`.
 It provides semantic vault operations for daily notes, ideas, note moves, tasks, vault
 entities, and note search. The API does not expose the Home Assistant MCP passthrough;
 that remains an MCP-only route when configured.
+
+#### Context capture
+
+The context endpoints persist source observations, prompt policy decisions, immutable
+responses, and prompt status history. They are inert until `CONTEXT_DATABASE_URL` is configured,
+and every `/context`, `/capture-policies`, and `/capture-prompts` request requires:
+
+```http
+Authorization: Bearer <CONTEXT_API_TOKEN>
+```
+
+Prompt policy has independent baseline and contextual daily budgets, one global cooldown, and
+a configurable minimum event confidence. Budgets use the intended schedule date in the user's
+IANA timezone. Context candidates fail closed during cooldown; baseline candidates may be delayed
+to the next eligible time. Correlated cross-source observations are deduplicated centrally.
 
 <!-- backplane:mcp-catalog:start -->
 ## MCP tools and resources
@@ -253,6 +283,44 @@ Fails if a note with the same name already exists.
 | `kind` | `domain` \| `person` \| `project` \| `resource` | yes | — | Entity kind: `domain`, `person`, `project`, or `resource`. |
 | `name` | `string` | yes | — | Human-readable note title. |
 
+#### `dismiss_capture_prompt`
+
+Return the canonical prompt after dismissing it.
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `prompt_id` | `string` | yes | — |  |
+| `request` | `object` | yes | — | Prompt dismissal record. |
+
+#### `evaluate_capture_prompt`
+
+Return the deterministic global-policy decision for a prompt candidate.
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `request` | `object` | yes | — | Candidate prompt submitted for deterministic global policy evaluation. |
+
+#### `expire_capture_prompt`
+
+Return the canonical prompt after expiring it.
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `prompt_id` | `string` | yes | — |  |
+| `request` | `object` | yes | — | Prompt expiry record. |
+
+#### `find_context_events`
+
+Return a bounded chronological context window.
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `end` | `string`? | no | `null` |  |
+| `kinds` | `string`[]? | no | `null` |  |
+| `limit` | `integer` | no | `100` |  |
+| `start` | `string`? | no | `null` |  |
+| `user_id` | `string` | yes | — |  |
+
 #### `find_vault_notes`
 
 Find notes by approximate title or filename.
@@ -339,6 +407,15 @@ Returned paths are relative to the note title.
 | `kind` | `domain` \| `person` \| `project` \| `resource` | yes | — | Entity kind: `domain`, `person`, `project`, or `resource`. |
 | `name` | `string` | yes | — | Human-readable entity name. |
 
+#### `mark_capture_prompt_delivered`
+
+Return the canonical prompt after recording successful delivery.
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `prompt_id` | `string` | yes | — |  |
+| `request` | `object` | yes | — | Successful notification-delivery record. |
+
 #### `move_note`
 
 Move or rename an Obsidian markdown note.
@@ -352,6 +429,22 @@ The source note must exist. The destination must not already exist.
 | --- | --- | --- | --- | --- |
 | `destination_path` | `string` | yes | — | New vault-relative note path. |
 | `source_path` | `string` | yes | — | Existing vault-relative note path. |
+
+#### `record_context_event`
+
+Return the canonical result after recording one contextual observation.
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `request` | `object` | yes | — | Idempotent context-event ingestion request. |
+
+#### `record_context_events`
+
+Return ordered results after recording an observation batch atomically.
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `request` | `object` | yes | — | Atomic context-event batch ingestion request. |
 
 #### `record_idea`
 
@@ -373,6 +466,15 @@ Convert spoken phrasing to a written sentence while preserving the user's wordin
 | Parameter | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `idea` | `string` | yes | — | The loose, non-actionable idea to record. Preserve the user's wording as closely as possible. |
+
+#### `respond_to_capture_prompt`
+
+Return the prompt and immutable response after an idempotent append.
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `prompt_id` | `string` | yes | — |  |
+| `request` | `object` | yes | — | Idempotent response captured from a delivered prompt. |
 
 #### `search_vault_notes`
 
