@@ -130,16 +130,8 @@ async def create_task(
     )
 
     outcome = task_creation_outcome(task)
-    response = CreateTaskToolResponse(
-        metadata=outcome.metadata,
-        slug=outcome.slug,
-        matched_capture_id=outcome.matched_capture_id,
-        candidate_captures=outcome.candidate_captures,
-        domains_created=outcome.domains_created,
-        resources_created=outcome.resources_created,
-        projects_created=outcome.projects_created,
-        people_created=outcome.people_created,
-        messages=_build_create_task_messages(outcome),
+    response = CreateTaskToolResponse.model_validate(
+        outcome.model_dump() | {"messages": _build_create_task_messages(outcome)},
     )
     logger.info(
         "create_task succeeded: slug={} matched_capture_id={}",

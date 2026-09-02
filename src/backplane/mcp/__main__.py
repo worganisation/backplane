@@ -11,6 +11,7 @@ from loguru import logger
 from backplane import __version__
 from backplane.mcp import create_mcp_server
 from backplane.mcp.asgi import compose_private_app
+from backplane.utils.settings import SETTINGS
 
 if TYPE_CHECKING:
     from fastmcp import FastMCP
@@ -31,7 +32,10 @@ def create_private_mcp_server() -> FastMCP[None]:
 def main() -> None:
     """Run the private MCP server until interrupted."""
     logger.info("Starting Backplane MCP server v{} on {}:{}", __version__, _HOST, _PORT)
-    logger.info("Serving private REST API at /api alongside MCP SSE")
+    transport_note = (
+        "streamable HTTP (/mcp, /mcp-ha)" if SETTINGS.ha_mcp_enabled else "SSE"
+    )
+    logger.info("Serving private REST API at /api alongside MCP {}", transport_note)
     app = compose_private_app()
     uvloop.run(
         uvicorn.Server(

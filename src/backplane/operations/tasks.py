@@ -28,6 +28,9 @@ class TaskCreationOutcome(BaseModel, frozen=True):
 def task_creation_outcome(task: CreateTaskResult) -> TaskCreationOutcome:
     """Project a domain task result into the shared adapter outcome.
 
+    Args:
+        task: Domain task creation result to project.
+
     Returns:
         Public task outcome fields independent of an HTTP or MCP transport.
     """
@@ -50,6 +53,11 @@ def build_task_capture_messages(
     candidate_snippet_max_len: int | None = None,
 ) -> list[str]:
     """Build adapter-specific follow-up guidance for capture matching.
+
+    Args:
+        task: Adapter-neutral task outcome to inspect for capture matches.
+        style: Message wording style.
+        candidate_snippet_max_len: Optional maximum length for candidate text snippets.
 
     Returns:
         Follow-up messages for a matched or candidate capture.

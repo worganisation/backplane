@@ -1,6 +1,6 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for coding agents working in this repository.
 
 ## What This Is
 
@@ -64,6 +64,9 @@ src/backplane/
 │   ├── __main__.py          # private ASGI server entrypoint
 │   ├── asgi.py              # combines REST, private MCP SSE, and upstream routes
 │   └── upstreams/           # optional HA MCP passthrough
+├── operations/
+│   ├── daily_notes.py       # shared daily-note and idea operations
+│   └── tasks.py             # shared task operations
 ├── services/
 │   ├── obsidian.py          # daily notes, ideas, and note moves
 │   ├── tasks.py             # structured task notes

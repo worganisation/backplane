@@ -37,16 +37,9 @@ async def create_task(request: CreateTaskRequest) -> CreateTaskResponse:
         link_capture_id=request.link_capture_id,
     )
     outcome = task_creation_outcome(task)
-    return CreateTaskResponse(
-        metadata=outcome.metadata,
-        slug=outcome.slug,
-        matched_capture_id=outcome.matched_capture_id,
-        candidate_captures=outcome.candidate_captures,
-        domains_created=outcome.domains_created,
-        resources_created=outcome.resources_created,
-        projects_created=outcome.projects_created,
-        people_created=outcome.people_created,
-        messages=build_task_capture_messages(outcome, style="api"),
+    return CreateTaskResponse.model_validate(
+        outcome.model_dump()
+        | {"messages": build_task_capture_messages(outcome, style="api")},
     )
 
 

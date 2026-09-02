@@ -47,7 +47,11 @@ async def test__create_api_app__returns_domain_errors_as_json(
     _ = obsidian_vault
     response = await api_client.patch(
         "/obsidian/daily-note",
-        json={"heading_path": ["Tasks"], "content": "Buy milk"},
+        json={
+            "heading_path": ["Tasks"],
+            "content": "Buy milk",
+            "date": "2026-08-01",
+        },
     )
 
     assert response.status_code == 422
