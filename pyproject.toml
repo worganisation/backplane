@@ -30,7 +30,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "basedpyright>=1.39.7",
+    "basedpyright>=1.39.10",
     "diff-cover>=10.2.0",
     "pytest>=8.0",
     "pytest-asyncio>=0.25",
