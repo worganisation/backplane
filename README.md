@@ -124,7 +124,18 @@ Run the server locally:
 python -m backplane.mcp
 ```
 
-This starts the private Home Assistant-compatible SSE server on port `8000`.
+This starts the private server on port `8000`, serving the vault REST API at `/api`.
+Without HA MCP proxying, its MCP transport remains SSE; with the proxy enabled, it
+retains the existing streamable `/mcp` and `/mcp-ha` routes.
+
+### REST API
+
+The private REST API is available at `http://localhost:8000/api`. Interactive OpenAPI
+documentation is at `/api/docs`, with the OpenAPI schema at `/api/openapi.json`.
+
+It provides semantic vault operations for daily notes, ideas, note moves, tasks, vault
+entities, and note search. The API does not expose the Home Assistant MCP passthrough;
+that remains an MCP-only route when configured.
 
 <!-- backplane:mcp-catalog:start -->
 ## MCP tools and resources

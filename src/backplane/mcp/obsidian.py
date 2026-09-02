@@ -2,16 +2,22 @@
 
 from __future__ import annotations
 
-import datetime as dt  # used at runtime by FastMCP schema introspection
+import datetime as dt  # ruff: ignore[typing-only-standard-library-import]  # used at runtime by FastMCP schema introspection
 from typing import TYPE_CHECKING, Annotated, Literal
 
 from loguru import logger
 from pydantic import Field
 
 from backplane.mcp.auth import OAuthToolRegistrationKwargs, oauth_tool_registration_kwargs
+from backplane.operations.daily_notes import (
+    read_daily_note,
+    update_daily_note_section,
+)
+from backplane.operations.daily_notes import (
+    record_idea as record_idea_operation,
+)
 from backplane.services.obsidian import ObsidianService
-from backplane.utils import AsyncPath, exc, format_human_date, today
-from backplane.utils.settings import SETTINGS
+from backplane.utils import AsyncPath, today
 
 if TYPE_CHECKING:
     from fastmcp import FastMCP
@@ -106,10 +112,7 @@ async def add_to_daily_note(
     Returns:
         The updated section, rendered as markdown.
 
-    Raises:
-        InformationRequiredError: If the section is missing and ``create_section_if_not_exists`` is false.
     """
-    date = date or today()
     logger.info(
         "add_to_daily_note: date={} heading={} mode={} create={}",
         date,
@@ -118,36 +121,13 @@ async def add_to_daily_note(
         create_section_if_not_exists,
     )
 
-    if heading_path[0] != (daily_note_top_level_heading := format_human_date(date)):
-        heading_path = (daily_note_top_level_heading, *heading_path)
-
-    async with ObsidianService().daily_note(
+    return await update_daily_note_section(
+        heading_path=heading_path,
+        content=content,
+        mode=mode,
+        create_section_if_not_exists=create_section_if_not_exists,
         date=date,
-        create_if_not_exists=True,
-        read_only=False,
-    ) as daily_note:
-        try:
-            section = daily_note.get_section(
-                heading_path,
-                create_if_not_exists=create_section_if_not_exists,
-            )
-        except exc.SectionNotFoundError as err:
-            raise exc.InformationRequiredError(
-                message=(
-                    f"{err} Retry with an existing section, or set "
-                    "`create_section_if_not_exists=true` to create it."
-                ),
-                detail=err.detail,
-            ) from err
-
-        if not section.content or mode == "replace":
-            section.replace_content(content)
-        elif mode == "append":
-            section.append_content(content)
-        elif mode == "prepend":
-            section.prepend_content(content)
-
-    return section.render()
+    )
 
 
 async def get_daily_note(
@@ -167,8 +147,7 @@ async def get_daily_note(
         The daily note, rendered as markdown.
     """
     logger.info("get_daily_note: date={}", date)
-    async with ObsidianService().daily_note(date=date, read_only=True) as daily_note:
-        return daily_note.render()
+    return await read_daily_note(date)
 
 
 async def record_idea(
@@ -189,14 +168,7 @@ async def record_idea(
         The string "Idea recorded successfully."
     """
     logger.info("record_idea")
-    now = dt.datetime.now(tz=SETTINGS.local_timezone)
-    heading_path = (now.strftime("%Y-%m-%d"), now.strftime("%H:%M"))
-
-    async with ObsidianService().idea_inbox() as idea_inbox:
-        section = idea_inbox.get_section(heading_path, create_if_not_exists=True)
-        section.append_content(idea)
-
-    return "Idea recorded successfully."
+    return await record_idea_operation(idea)
 
 
 async def move_note(
@@ -229,8 +201,7 @@ async def move_note(
 
 async def daily_note_today_resource() -> str:
     """Return today's daily note as rendered markdown."""
-    async with ObsidianService().daily_note(date=today(), read_only=True) as daily_note:
-        return daily_note.render()
+    return await read_daily_note(today())
 
 
 async def daily_note_by_date_resource(
@@ -244,8 +215,7 @@ async def daily_note_by_date_resource(
     Returns:
         The daily note content as rendered markdown.
     """
-    async with ObsidianService().daily_note(date=date, read_only=True) as daily_note:
-        return daily_note.render()
+    return await read_daily_note(date)
 
 
 def register_obsidian_tools(mcp: FastMCP[None], *, require_oauth: bool = False) -> None:

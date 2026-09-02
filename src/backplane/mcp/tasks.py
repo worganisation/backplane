@@ -5,12 +5,16 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Annotated
 
 from loguru import logger
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from backplane.mcp.auth import OAuthToolRegistrationKwargs, oauth_tool_registration_kwargs
-from backplane.services.tasks import CaptureCandidate, CreateTaskResult, TaskService
+from backplane.operations.tasks import (
+    TaskCreationOutcome,
+    build_task_capture_messages,
+    task_creation_outcome,
+)
+from backplane.services.tasks import TaskService
 from backplane.utils import enums  # ruff:ignore[typing-only-first-party-import]
-from backplane.utils.helpers.obsidian import VaultNoteMetadata
 
 if TYPE_CHECKING:
     from fastmcp import FastMCP
@@ -39,46 +43,28 @@ _LINK_TASK_TO_CAPTURE_DESCRIPTION = """Link an existing task note to a confirmed
 Use after `create_task` returned candidate captures and the user confirms which capture belongs to the task."""
 
 
-class CreateTaskToolResponse(BaseModel, frozen=True):
+class CreateTaskToolResponse(TaskCreationOutcome, frozen=True):
     """Structured MCP response for task creation."""
 
-    metadata: VaultNoteMetadata
-    slug: str
-    matched_capture_id: str | None = None
-    candidate_captures: list[CaptureCandidate] = Field(default_factory=list)
-    domains_created: list[str] = Field(default_factory=list)
-    resources_created: list[str] = Field(default_factory=list)
-    projects_created: list[str] = Field(default_factory=list)
-    people_created: list[str] = Field(default_factory=list)
     messages: list[str] = Field(default_factory=list)
 
 
-def _build_create_task_messages(task: CreateTaskResult) -> list[str]:
+def _build_create_task_messages(task: TaskCreationOutcome) -> list[str]:
     """Generate follow-up messages based on capture matching results from task creation.
 
-    Parameters:
-        task (CreateTaskResult): The result of task creation, containing match and candidate capture information.
+    Args:
+        task: Task creation outcome containing match and candidate capture information.
 
     Returns:
         list[str]: Follow-up messages describing capture match status. When a capture
             was matched, includes the capture ID. When candidates exist without a
             match, suggests linking the first candidate. Otherwise empty.
     """
-    messages: list[str] = []
-    if task.matched_capture_id:
-        messages.append(f"Matched inbox capture from {task.matched_capture_id}.")
-    elif task.candidate_captures:
-        candidate = task.candidate_captures[0]
-        snippet = " ".join(candidate.text.split())
-        if len(snippet) > _CANDIDATE_SNIPPET_MAX_LEN:
-            snippet = f"{snippet[: _CANDIDATE_SNIPPET_MAX_LEN - 3]}..."
-        messages.append(
-            (
-                f"This looked similar to {candidate.id} ({snippet!r}); "
-                f"say 'link it to {candidate.id}' to connect that capture."
-            ),
-        )
-    return messages
+    return build_task_capture_messages(
+        task,
+        style="mcp",
+        candidate_snippet_max_len=_CANDIDATE_SNIPPET_MAX_LEN,
+    )
 
 
 async def create_task(
@@ -143,16 +129,9 @@ async def create_task(
         link_capture_id=link_capture_id,
     )
 
-    response = CreateTaskToolResponse(
-        metadata=task.metadata,
-        slug=task.slug,
-        matched_capture_id=task.matched_capture_id,
-        candidate_captures=task.candidate_captures,
-        domains_created=task.domains_created,
-        resources_created=task.resources_created,
-        projects_created=task.projects_created,
-        people_created=task.people_created,
-        messages=_build_create_task_messages(task),
+    outcome = task_creation_outcome(task)
+    response = CreateTaskToolResponse.model_validate(
+        outcome.model_dump() | {"messages": _build_create_task_messages(outcome)},
     )
     logger.info(
         "create_task succeeded: slug={} matched_capture_id={}",
