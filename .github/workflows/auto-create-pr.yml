@@ -5,17 +5,17 @@ on:
   push:
     branches-ignore:
       - main
+      - dependabot/**
   workflow_dispatch:
 
 jobs:
   create-pr:
     name: Create PR
     # yamllint disable-line rule:line-length
-    uses: worganisation/github-config-files/.github/workflows/__create-pull-request.yml@main
+    uses: worganisation/github-config-files/.github/workflows/__create-pull-request.yml@0.8.6
     with:
       base-ref-name: ${{ github.event.repository.default_branch }}
       head-ref-name: ${{ github.ref_name }}
       pr-draft: true
       update-pr-body-if-exists: true
-    secrets:
-      WORGARSIDE_DEV_TOKEN: ${{ secrets.WORGARSIDE_DEV_TOKEN }}
+    secrets: inherit

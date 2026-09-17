@@ -112,6 +112,8 @@ async def add_to_daily_note(
     Returns:
         The updated section, rendered as markdown.
 
+    Raises:
+        InformationRequiredError: If the section is missing and creation was not requested.
     """
     logger.info(
         "add_to_daily_note: date={} heading={} mode={} create={}",
