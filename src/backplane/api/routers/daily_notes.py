@@ -30,7 +30,11 @@ async def get_daily_note(date: dt.date | None = None) -> DailyNoteResponse:
     Returns:
         Rendered daily note response.
     """
-    return DailyNoteResponse(date=date or today(), markdown=await read_daily_note(date))
+    resolved_date = date or today()
+    return DailyNoteResponse(
+        date=resolved_date,
+        markdown=await read_daily_note(resolved_date),
+    )
 
 
 @router.patch("/obsidian/daily-note", response_model=SectionResponse)

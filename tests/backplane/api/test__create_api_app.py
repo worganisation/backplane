@@ -100,6 +100,26 @@ async def test__create_api_app__returns_domain_errors_as_json(
     assert response.json()["detail"]["section"] == "Saturday, August 1st 2026"
 
 
+async def test__create_api_app__missing_daily_note_returns_not_found(
+    api_client: httpx.AsyncClient,
+    obsidian_vault: AsyncPath,
+) -> None:
+    """An absent daily note returns 404 without creating a file or exposing its path."""
+    response = await api_client.get(
+        "/obsidian/daily-note",
+        params={"date": "2026-08-01"},
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "message": "Daily note for 2026-08-01 not found.",
+        "detail": {"date": "2026-08-01"},
+    }
+    assert not await (
+        obsidian_vault / VAULT_PATHS.daily_notes_dir / "2026-08-01.md"
+    ).exists()
+
+
 async def test__create_api_app__creates_and_updates_entity_sections(
     api_client: httpx.AsyncClient,
     obsidian_vault: AsyncPath,
