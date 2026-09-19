@@ -11,11 +11,12 @@ from fastmcp.exceptions import NotFoundError
 from fastmcp.server.auth.oidc_proxy import OIDCConfiguration
 from fastmcp.server.http import StarletteWithLifespan
 from fastmcp.server.providers.base import Provider
-from starlette.routing import Route
+from starlette.routing import Mount, Route
 
 from backplane.mcp.app_factory import build_backplane_mcp
 from backplane.mcp.asgi import (
     _compose_mcp_apps,  # pyright: ignore[reportPrivateUsage]
+    compose_private_app,
     compose_private_mcp_app,
     compose_public_mcp_app,
 )
@@ -90,6 +91,26 @@ def test__compose_private_mcp_app__registers_upstream_route_when_enabled(
     route_paths = {route.path for route in app.routes if isinstance(route, Route)}
 
     assert {"/mcp", "/mcp-ha"} <= route_paths
+
+
+def test__compose_private_app__keeps_api_separate_from_ha_upstream(
+    mocker: MockerFixture,
+    ha_upstream_settings: Settings,
+    sample_fake_ha_mcp: FastMCP[None],
+) -> None:
+    """The composed private app exposes REST separately from the HA MCP route."""
+    _ = mocker.patch("backplane.mcp.asgi.SETTINGS", ha_upstream_settings)
+    _ = mocker.patch(
+        "backplane.mcp.upstreams.base.create_proxy",
+        return_value=sample_fake_ha_mcp,
+    )
+
+    app = compose_private_app()
+    route_paths = {
+        route.path for route in app.routes if isinstance(route, (Mount, Route))
+    }
+
+    assert {"/api", "/mcp", "/mcp-ha"} <= route_paths
 
 
 def test__compose_mcp_apps__raises_when_upstream_route_missing() -> None:
