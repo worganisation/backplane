@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, TypedDict, cast
+from typing import TYPE_CHECKING, NotRequired, TypedDict, cast
 
 import httpx
 
@@ -28,7 +28,8 @@ class _ClientRegistration(TypedDict):
     redirect_uris: list[str]
     scope: str
     client_id: str
-    client_secret: str
+    client_secret: NotRequired[str]
+    token_endpoint_auth_method: str
 
 
 async def test__public_mcp_oauth__protected_resource_metadata_is_exposed(
@@ -97,7 +98,8 @@ async def test__public_mcp_oauth__dynamic_client_registration_succeeds(
     ]
     assert payload["scope"] == " ".join(_EXPECTED_SCOPES)
     assert payload["client_id"]
-    assert payload["client_secret"]
+    assert payload["token_endpoint_auth_method"] == "none"  # ruff:ignore[hardcoded-password-string] - OAuth method, not a secret
+    assert "client_secret" not in payload
 
 
 async def test__public_mcp_oauth__trusted_client_receives_ha_scope(
