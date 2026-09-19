@@ -100,6 +100,26 @@ async def test__create_api_app__returns_domain_errors_as_json(
     assert response.json()["detail"]["section"] == "Saturday, August 1st 2026"
 
 
+async def test__create_api_app__missing_daily_note_returns_not_found(
+    api_client: httpx.AsyncClient,
+    obsidian_vault: AsyncPath,
+) -> None:
+    """An absent daily note returns 404 without creating a file or exposing its path."""
+    response = await api_client.get(
+        "/obsidian/daily-note",
+        params={"date": "2026-08-01"},
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "message": "Daily note for 2026-08-01 not found.",
+        "detail": {"date": "2026-08-01"},
+    }
+    assert not await (
+        obsidian_vault / VAULT_PATHS.daily_notes_dir / "2026-08-01.md"
+    ).exists()
+
+
 async def test__create_api_app__creates_and_updates_entity_sections(
     api_client: httpx.AsyncClient,
     obsidian_vault: AsyncPath,
@@ -257,3 +277,42 @@ async def test__create_api_app__does_not_expose_ha_passthrough(
     response = await api_client.get("/ha_get_state")
 
     assert response.status_code == 404
+
+
+async def test__create_api_app__filters_search_kinds_from_query_parameters(
+    api_client: httpx.AsyncClient,
+    obsidian_vault: AsyncPath,
+) -> None:
+    """GET searches accept repeated kind query parameters without a request body."""
+    _ = obsidian_vault
+    for kind in ("domain", "resource", "project"):
+        created = await api_client.post(
+            f"/obsidian/entities/{kind}",
+            json={"name": "Music"},
+        )
+        assert created.status_code == 201
+        updated = await api_client.patch(
+            f"/obsidian/entities/{kind}/Music/section",
+            json={
+                "heading_path": ["Overview"],
+                "content": "Music listening records.",
+                "create_section_if_not_exists": True,
+            },
+        )
+        assert updated.status_code == 200
+
+    for route in ("find", "content"):
+        response = await api_client.get(
+            f"/obsidian/search/{route}",
+            params=[("query", "Music"), ("kinds", "resource"), ("kinds", "project")],
+        )
+        assert response.status_code == 200
+        assert {hit["kind"] for hit in response.json()["hits"]} == {
+            "resource",
+            "project",
+        }
+        invalid = await api_client.get(
+            f"/obsidian/search/{route}",
+            params={"query": "Music", "kinds": "unsupported"},
+        )
+        assert invalid.status_code == 422

@@ -15,7 +15,7 @@ router = APIRouter(tags=["search"])
 @router.get("/obsidian/search/find", response_model=SearchResponse)
 async def find_notes(
     query: Annotated[str, Query(min_length=1)],
-    kinds: list[VaultSearchKind] | None = None,
+    kinds: Annotated[list[VaultSearchKind] | None, Query()] = None,
     limit: Annotated[int, Query(ge=1, le=50)] = 20,
 ) -> SearchResponse:
     """Find vault notes by title or filename.
@@ -35,7 +35,7 @@ async def find_notes(
 @router.get("/obsidian/search/content", response_model=SearchResponse)
 async def search_notes(
     query: Annotated[str, Query(min_length=1)],
-    kinds: list[VaultSearchKind] | None = None,
+    kinds: Annotated[list[VaultSearchKind] | None, Query()] = None,
     limit: Annotated[int, Query(ge=1, le=50)] = 20,
 ) -> SearchResponse:
     """Search vault note contents for a topic or phrase.

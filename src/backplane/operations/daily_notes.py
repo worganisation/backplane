@@ -17,9 +17,22 @@ async def read_daily_note(date: dt.date | None = None) -> str:
 
     Returns:
         Rendered Markdown for the requested daily note.
+
+    Raises:
+        NotFoundError: If the requested daily note does not exist.
     """
-    async with ObsidianService().daily_note(date=date, read_only=True) as daily_note:
-        return daily_note.render()
+    resolved_date = date or today()
+    try:
+        async with ObsidianService().daily_note(
+            date=resolved_date,
+            read_only=True,
+        ) as daily_note:
+            return daily_note.render()
+    except FileNotFoundError as error:
+        raise exc.NotFoundError(
+            message=f"Daily note for {resolved_date.isoformat()} not found.",
+            detail={"date": resolved_date.isoformat()},
+        ) from error
 
 
 async def update_daily_note_section(

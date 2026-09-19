@@ -27,8 +27,10 @@ PUT /file/foo.md
 POST /do_thing
 ```
 
-MCP and REST are separate adapter layers over the shared service layer. REST handlers
-must call services directly; they must not proxy the Home Assistant MCP passthrough.
+MCP and REST are separate adapters over shared domain logic. `operations/` holds
+use cases and result projections shared by both transports; adapters call those
+operations or `services/` directly when no shared orchestration is needed. REST
+handlers must not call MCP tool wrappers or proxy the Home Assistant MCP passthrough.
 
 ## Commands
 
@@ -83,7 +85,7 @@ src/backplane/
 
 **MarkdownDocument / MarkdownSection** (`utils/markdown.py`) parse a markdown file into front matter (via `ruamel.yaml`, preserving formatting) and a tree of `MarkdownSection` objects keyed by heading. Key constructor fields: `create_if_not_exists` (bool) and `initial_content` (str | None, written as the new file body when creating). Heading matching in `get_section()` is case- and format-insensitive (inline markdown stripped). `mdformat` normalizes content on serialization. On `__aexit__`, if `validate_file_content_unchanged` is true and the on-disk content differs from the rendered output, a `ValueError` is raised before writing.
 
-**helpers.py** provides date utilities: `today()` (UTC date), `format_human_date()` (e.g. `Saturday, May 9th 2026`), `format_obsidian_moment_date(date, fmt)` (moment.js token expansion), and `ordinal_day_of_month` / `ordinal_suffix_for_day` helpers.
+**helpers.py** provides date utilities: `today()` (configured local date), `format_human_date()` (e.g. `Saturday, May 9th 2026`), `format_obsidian_moment_date(date, fmt)` (moment.js token expansion), and `ordinal_day_of_month` / `ordinal_suffix_for_day` helpers.
 
 **Settings** (`utils/settings.py`) uses `pydantic-settings`; the only required env var is `OBSIDIAN_VAULT_PATH`. A `.env` file at the project root is used locally.
 
@@ -91,14 +93,14 @@ src/backplane/
 
 - Backplane writes `.md` files directly to the vault filesystem; Obsidian picks up changes automatically.
 - Daily notes have stable headings (e.g. `## Tasks`, `## Ideas`) enabling deterministic semantic editing.
-- Missing daily notes are created automatically (from the vault's template if configured, otherwise empty). Missing headings are **not** yet auto-created — `get_section()` raises `ValueError` if the path doesn't exist.
+- Missing daily notes are created automatically (from the vault's template if configured, otherwise empty). Missing headings are created when `create_section_if_not_exists` is requested; otherwise the daily-note operation raises `InformationRequiredError`.
 
 ### API endpoints
 
 The private FastAPI app is mounted at `/api`; its OpenAPI documentation is available
 at `/api/docs`. It exposes health, daily note, idea, note-move, task, vault entity, and
-vault search operations. Route handlers call `services/` directly rather than MCP tool
-wrappers.
+vault search operations. Route handlers call shared `operations/` or `services/`
+directly rather than MCP tool wrappers.
 
 The API deliberately has no Home Assistant passthrough endpoints. The optional
 `/mcp-ha` route remains MCP-only; the core private MCP transport remains available

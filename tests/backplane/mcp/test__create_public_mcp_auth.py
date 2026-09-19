@@ -81,7 +81,7 @@ def test__create_public_mcp_auth__builds_oidc_proxy_when_oauth_is_configured(
         client_secret=_TEST_OAUTH_CREDENTIAL,
         base_url=settings.mcp_public_base_url,
         require_authorization_consent="external",
-        allowed_client_redirect_uris=settings.allowed_client_redirect_uri_patterns,
+        allowed_client_redirect_uris=None,
         token_verifier=mock_introspection.return_value,
     )
     mock_auth.configure_client_scope_policy.assert_called_once_with(

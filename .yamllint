@@ -1,8 +1,4 @@
 ---
-extends: default
-
 rules:
   line-length:
     max: 120
-  truthy:
-    check-keys: false
