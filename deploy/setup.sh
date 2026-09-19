@@ -20,12 +20,12 @@ load_environment() {
     fi
 }
 
-run_context_migrations() {
+check_context_schema() {
     if [[ -z "${CONTEXT_DATABASE_URL:-}" ]]; then
-        echo "Context database is not configured; skipping Alembic migrations."
+        echo "Context database is not configured; skipping schema check."
         return
     fi
-    "$UV_BIN" run alembic upgrade head
+    "$UV_BIN" run alembic current --check-heads
 }
 
 # Install uv if not present
@@ -84,7 +84,7 @@ install_public_mcp_systemd_units() {
 cd "$INSTALL_DIR"
 "$UV_BIN" python install 3.14
 "$UV_BIN" sync --frozen --no-dev
-run_context_migrations
+check_context_schema
 
 install -d -o "${SERVICE_USER}" -m 0755 "${LOG_DIR}"
 

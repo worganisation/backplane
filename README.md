@@ -41,13 +41,32 @@ PostgreSQL database and set:
   `postgresql+asyncpg://backplane:password@postgres/backplane`
 - `CONTEXT_API_TOKEN` to a high-entropy secret used only for context REST requests
 
-Both values are treated as secrets and redacted from settings representations. `setup.sh` and
-the `just deploy`/`just checkout` workflows apply Alembic migrations automatically when
-`CONTEXT_DATABASE_URL` is set. For local development, run:
+Both values are treated as secrets and redacted from settings representations.
+The infrastructure repository owns the PostgreSQL database, login, access rules,
+and SOPS-encrypted credentials. Backplane owns its tables and Alembic migrations.
+The infrastructure declaration uses database/login `backplane_context` on LXC 107;
+application access originates from Backplane LXC 108.
+
+`setup.sh`, `just deploy`, and `just checkout` check that every Alembic head is
+applied when `CONTEXT_DATABASE_URL` is configured. They never apply migrations.
+A missing or outdated schema fails the check before service restart. Provisioning
+an empty database does not enable context capture by itself.
+
+For an authorized schema change, verify a recoverable database backup (or record
+that this is the approved initial empty-database setup), stop both Backplane
+services, and run:
 
 ```bash
-uv run alembic upgrade head
+BACKPLANE_CONTEXT_MIGRATE=1 just context-migrate BACKUP_REFERENCE
 ```
+
+The reference is an operator attestation, not automatic proof of a tested backup.
+The command refuses running systemd services, applies the reviewed migration and
+checks the resulting Alembic heads. It does not restart services. Inspect failures
+before restarting; database rollback/recovery is a separate explicit operation.
+Local development without systemd uses Alembic directly against a disposable test
+database. Schema tests exercise SQLite locally; production PostgreSQL verification
+belongs to the separately authorized deployment.
 
 If you plan to run the public ChatGPT-facing MCP service, also configure the
 OAuth variables documented in `.env.example` before running setup with

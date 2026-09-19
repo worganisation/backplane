@@ -113,3 +113,12 @@ alongside `/api` in its configured SSE or streamable-HTTP mode.
 - **Ruff** has almost all rule sets enabled (except CPY, TD002). Line length is 90. Docstrings use Google style.
 - **Pre-commit** enforces conventional commits, dependency sync (`uv-lock`), and all of the above linters.
 - **Semantic release** drives version bumps from conventional commit messages.
+
+## Context database ownership
+
+Infrastructure Ansible provisions the PostgreSQL database/login and scoped access.
+SOPS owns creation credentials and the context API token. Backplane owns Alembic
+schema revisions. Ordinary setup/deploy/checkout only check migration heads; they
+do not apply DDL. The explicit `context-migrate` command requires an owner gate,
+a backup reference and stopped systemd services. Do not run it or provision
+database objects under code-review-only authorization.

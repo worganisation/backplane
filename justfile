@@ -34,16 +34,39 @@ _mcp-public-restart:
         echo "Public MCP server started (PID $!), logging to /tmp/backplane-public-mcp.log"
     fi
 
-# Apply context-capture migrations when persistence is configured
+# Verify the schema without applying migrations during ordinary deployment
 [private]
-_context-migrate:
+_context-check:
     #!/usr/bin/env bash
     set -euo pipefail
     if [[ -z "${CONTEXT_DATABASE_URL:-}" ]]; then
-        echo "Context database is not configured; skipping Alembic migrations."
+        echo "Context database is not configured; skipping schema check."
         exit 0
     fi
+    uv run alembic current --check-heads
+
+# Apply reviewed context migrations after backup and explicit owner authorization
+context-migrate backup_id:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ "${BACKPLANE_CONTEXT_MIGRATE:-}" != 1 || -z {{ quote(backup_id) }} ]]; then
+        echo "BACKPLANE_CONTEXT_MIGRATE=1 and a backup reference are required." >&2
+        exit 1
+    fi
+    if [[ -z "${CONTEXT_DATABASE_URL:-}" ]]; then
+        echo "CONTEXT_DATABASE_URL must be configured." >&2
+        exit 1
+    fi
+    command -v systemctl >/dev/null || { echo "Use Alembic directly for local development." >&2; exit 1; }
+    for unit in backplane backplane-public; do
+        state="$(systemctl show "$unit" --property=ActiveState --value)"
+        case "$state" in
+            inactive|failed) ;;
+            *) echo "Stop both Backplane services before applying migrations." >&2; exit 1 ;;
+        esac
+    done
     uv run alembic upgrade head
+    uv run alembic current --check-heads
 
 # Start or restart the private MCP server
 mcp-start:
@@ -110,7 +133,7 @@ deploy tag:
     git fetch --tags origin
     git reset --hard {{ tag }}
     uv sync --frozen --no-dev
-    just _context-migrate
+    just _context-check
     just _mcp-restart
     if systemctl is-enabled backplane-public.service &>/dev/null; then just _mcp-public-restart; fi
 
@@ -120,7 +143,7 @@ checkout branch="main":
     git checkout {{ branch }}
     git pull
     uv sync --no-dev
-    just _context-migrate
+    just _context-check
     just _mcp-restart
     if systemctl is-enabled backplane-public.service &>/dev/null; then just _mcp-public-restart; fi
 
