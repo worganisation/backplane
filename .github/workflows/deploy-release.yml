@@ -1,0 +1,56 @@
+---
+name: Deploy release
+
+on:
+  release:
+    types:
+      - published
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backplane-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy
+    if: '!github.event.release.prerelease'
+    environment: production-deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@780049a30b6ff5c378a9e7b389d15ece7a204888 # v4.1.3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Set up SSH key and known hosts
+        env:
+          DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          TAILSCALE_HOSTNAME: ${{ vars.BACKPLANE_TAILSCALE_HOSTNAME }}
+        run: |
+          install -d -m 700 "${RUNNER_TEMP}/ssh"
+          install -m 600 /dev/null "${RUNNER_TEMP}/ssh/deploy_key"
+          printf '%s\n' "${DEPLOY_SSH_PRIVATE_KEY}" > "${RUNNER_TEMP}/ssh/deploy_key"
+          ssh-keyscan -H "${TAILSCALE_HOSTNAME}" > "${RUNNER_TEMP}/ssh/known_hosts"
+
+      - name: Deploy
+        env:
+          DEPLOY_SSH_USER: ${{ vars.DEPLOY_SSH_USER }}
+          INSTALL_DIR: ${{ vars.BACKPLANE_INSTALL_DIR }}
+          TAILSCALE_HOSTNAME: ${{ vars.BACKPLANE_TAILSCALE_HOSTNAME }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          ssh \
+            -i "${RUNNER_TEMP}/ssh/deploy_key" \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="${RUNNER_TEMP}/ssh/known_hosts" \
+            "${DEPLOY_SSH_USER}@${TAILSCALE_HOSTNAME}" \
+            "cd '${INSTALL_DIR}' && just deploy '${TAG}'"
