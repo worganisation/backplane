@@ -313,3 +313,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .vscode
+
+# Renovate repository policy
+!/renovate.json
