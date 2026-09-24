@@ -14,11 +14,12 @@ if TYPE_CHECKING:
 
 
 async def atomic_write_text(path: AsyncPath, content: str) -> None:
-    """Write text to a file atomically."""
+    """Write text atomically using a temporary file on the destination filesystem."""
     await path.parent.mkdir(parents=True, exist_ok=True)
     async with NamedTemporaryFile(
         mode="w",
         encoding="utf-8",
+        dir=str(path.parent),
         prefix="backplane-",
         suffix=".tmp",
     ) as tmp_file:
