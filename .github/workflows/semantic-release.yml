@@ -12,7 +12,6 @@ on:
         default: auto
         options:
           - auto
-          - prerelease
           - patch
           - minor
           - major
@@ -29,36 +28,10 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     name: Release
-    environment: production
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    permissions:
-      contents: write
-    outputs:
-      released: ${{ steps.python-semantic-release.outputs.released }}
-      tag: ${{ steps.python-semantic-release.outputs.tag }}
-      version: ${{ steps.python-semantic-release.outputs.version }}
-    steps:
-      - name: Log inputs
-        if: runner.debug == '1'
-        env:
-          INPUTS: ${{ toJson(inputs) }}
-        run: echo -e "\`\`\`json\n${INPUTS}\n\`\`\`" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Clone repo
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          ref: ${{ github.ref }}
-          token: ${{ secrets.WORGARSIDE_DEV_TOKEN }}
-
-      - name: Python Semantic Release
-        id: python-semantic-release
-        uses: python-semantic-release/python-semantic-release@9a026e9303981c866c3425723009becb2437c757 # v10.6.2
-        with:
-          github_token: ${{ secrets.WORGARSIDE_DEV_TOKEN }}
-          git_committer_name: worgarside-dev
-          git_committer_email: worgarside.dev@gmail.com
-          config_file: pyproject.toml
-          verbosity: 2
-          force: ${{ inputs.force-deployment != 'auto' && inputs.force-deployment || '' }}
+    # yamllint disable-line rule:line-length
+    uses: worganisation/github-config-files/.github/workflows/__semantic-release.yml@0.9.0
+    with:
+      python-version: '3.14'
+      force-deployment: >-
+        ${{ inputs.force-deployment != 'auto' && inputs.force-deployment || '' }}
+    secrets: inherit
