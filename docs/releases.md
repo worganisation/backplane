@@ -21,11 +21,11 @@ not deploy. Merge and branch push events do not initiate releases.
 The GCF reusable workflow owns SSH setup, host verification, credential cleanup
 and release invocation. It uses GitHub's published SSH host keys and SSH on port
 443, while `remote.ignore_token_for_push=true` keeps Git pushes on SSH and
-`GH_TOKEN` authenticates release API requests. Backplane opts into Python 3.14,
-PSR 10.6.2 and `ubuntu-latest`; the shared GitPython pin is retained.
+`GH_TOKEN` authenticates release API requests. Backplane selects Python 3.14. All callers use the shared CC self-hosted runner
+and one Renovate-managed stable PSR pin; the shared GitPython pin is retained.
 
 The caller is managed in GCF at
-`gha_sync/workflows/repo/backplane/semantic-release.yml`. Change shared behavior
+`gha_sync/workflows/template/semantic-release.template.yml`. Change shared behavior
 in GCF and caller settings at that sync source before updating this repository.
 The initial caller pins the shared implementation commit; GCF's release pin
 updater replaces it with a published version during a later release. Merge the
