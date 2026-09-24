@@ -588,4 +588,4 @@ trailing space: `https://backplane-mcp.example.com/mcp`.
 
 See [vault filesystem diagnostics](docs/deployment-filesystems.md) for atomic-write constraints and the LXC deployment layout.
 
-See [manual release procedure](docs/releases.md) for preparing and publishing releases with protected main.
+See [manual release procedure](docs/releases.md) for deploy-key authentication and release verification.
