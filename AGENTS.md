@@ -113,3 +113,11 @@ alongside `/api` in its configured SSE or streamable-HTTP mode.
 - **Ruff** has almost all rule sets enabled (except CPY, TD002). Line length is 90. Docstrings use Google style.
 - **Pre-commit** enforces conventional commits, dependency sync (`uv-lock`), and all of the above linters.
 - **Semantic release** drives version bumps from conventional commit messages.
+
+## Release policy
+
+Semantic Release is triggered only by an explicit workflow_dispatch on main.
+Merges and branch pushes do not create releases. Deployment workflows, where
+present, consume published releases or release tags. Do not introduce automatic
+release creation or branch-push deployment; environment approval gates are not
+part of the release authorization flow.
