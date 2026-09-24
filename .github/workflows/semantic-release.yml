@@ -4,6 +4,10 @@ name: Semantic Release
 on:
   workflow_dispatch:
     inputs:
+      publish-version:
+        description: Version from a merged release-preparation PR; blank prepares a PR.
+        required: false
+        type: string
       force-deployment:
         description: >-
           Version component to force, or auto to use semantic commit parsing.
@@ -49,10 +53,14 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-          ref: ${{ github.ref }}
+          ref: ${{ github.sha }}
           token: ${{ secrets.WORGARSIDE_DEV_TOKEN }}
 
+      - name: Restore main branch for version calculation
+        run: git checkout -B main
+
       - name: Python Semantic Release
+        if: inputs.publish-version == ''
         id: python-semantic-release
         uses: python-semantic-release/python-semantic-release@9a026e9303981c866c3425723009becb2437c757 # v10.6.2
         with:
@@ -62,3 +70,65 @@ jobs:
           config_file: pyproject.toml
           verbosity: 2
           force: ${{ inputs.force-deployment != 'auto' && inputs.force-deployment || '' }}
+          push: false
+          vcs_release: false
+
+      - name: Push release preparation branch
+        if: inputs.publish-version == '' && steps.python-semantic-release.outputs.released == 'true'
+        env:
+          VERSION: ${{ steps.python-semantic-release.outputs.version }}
+        run: |
+          branch="release/prepare-${VERSION}-${GITHUB_RUN_ID}"
+          git push origin "HEAD:refs/heads/${branch}"
+          {
+            echo "## Release preparation"
+            echo "Pushed ${branch}. Auto-Create PR will open a draft PR."
+            echo "Review and merge that PR, then dispatch this workflow on main with publish-version=${VERSION}."
+            echo "No release was published and no deployment was triggered."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Validate merged release version
+        if: inputs.publish-version != ''
+        env:
+          VERSION: ${{ inputs.publish-version }}
+        run: |
+          python3 - <<'PYCODE'
+          import ast
+          import os
+          import re
+          import tomllib
+          from pathlib import Path
+
+          version = os.environ["VERSION"]
+          if not re.fullmatch(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-rc\.(0|[1-9][0-9]*))?", version):
+              raise SystemExit("Expected a stable version or an rc prerelease, without a v prefix")
+          project = tomllib.loads(Path("pyproject.toml").read_text())
+          module = ast.parse(Path("src/backplane/__init__.py").read_text())
+          versions = [ast.literal_eval(node.value) for node in module.body
+                      if isinstance(node, ast.Assign)
+                      and any(isinstance(target, ast.Name) and target.id == "__version__"
+                              for target in node.targets)]
+          lock = tomllib.loads(Path("uv.lock").read_text())
+          locked = [package["version"] for package in lock["package"]
+                    if package["name"] == project["project"]["name"]]
+          # uv normalizes SemVer prereleases to PEP 440 (0.8.0-rc.1 -> 0.8.0rc1).
+          normalized = version.replace("-rc.", "rc")
+          if project["project"]["version"] != version or versions != [version] or locked != [normalized]:
+              raise SystemExit("Version metadata does not match; merge the preparation PR first")
+          PYCODE
+          if git rev-parse --verify "refs/tags/${VERSION}" >/dev/null 2>&1; then
+            echo "Tag ${VERSION} already exists; refusing to move or republish it."
+            exit 1
+          fi
+
+      - name: Publish merged release
+        if: inputs.publish-version != ''
+        env:
+          GH_TOKEN: ${{ secrets.WORGARSIDE_DEV_TOKEN }}
+          VERSION: ${{ inputs.publish-version }}
+        run: |
+          args=(--repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --generate-notes)
+          if [[ "$VERSION" == *-rc.* ]]; then
+            args+=(--prerelease)
+          fi
+          gh release create "$VERSION" "${args[@]}"

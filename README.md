@@ -587,3 +587,5 @@ provider (see above), delete the connector, and reconnect. Confirm the MCP URL h
 trailing space: `https://backplane-mcp.example.com/mcp`.
 
 See [vault filesystem diagnostics](docs/deployment-filesystems.md) for atomic-write constraints and the LXC deployment layout.
+
+See [manual release procedure](docs/releases.md) for preparing and publishing releases with protected main.

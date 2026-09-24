@@ -132,6 +132,7 @@ docstring-code-line-length = 100
 ignore-words-list = "tmpl,homeassistant,nd"
 
 [tool.semantic_release]
+commit_message = "chore(release): prepare {version}"
 tag_format = "{version}"
 version_toml = ["pyproject.toml:project.version"]
 version_variables = [
