@@ -585,3 +585,5 @@ Obsidian may require Business, Enterprise, or Edu.
 the browser but `/token` lacks a `refresh_token`. Add **`offline_access`** on the Authentik
 provider (see above), delete the connector, and reconnect. Confirm the MCP URL has no
 trailing space: `https://backplane-mcp.example.com/mcp`.
+
+See [vault filesystem diagnostics](docs/deployment-filesystems.md) for atomic-write constraints and the LXC deployment layout.
