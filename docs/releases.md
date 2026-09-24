@@ -18,13 +18,19 @@ not deploy. Merge and branch push events do not initiate releases.
   through the API. The bot token also allows the published event to trigger the
   separate deployment workflow.
 
-Checkout installs the SSH credential and verifies GitHub's host key with strict
-checking. Semantic Release sets `remote.ignore_token_for_push=true` so Git pushes
-use that SSH configuration, while API requests still use `GH_TOKEN`. The release
-CLI runs on the runner using Python 3.14 and pinned Python Semantic Release
-10.6.2, rather than in a Docker action with different filesystem paths for the
-checkout-managed key. `pip` is supplied for the existing release build command.
-Checkout's post-job cleanup removes its SSH credentials. Never print key values.
+The GCF reusable workflow owns SSH setup, host verification, credential cleanup
+and release invocation. It uses GitHub's published SSH host keys and SSH on port
+443, while `remote.ignore_token_for_push=true` keeps Git pushes on SSH and
+`GH_TOKEN` authenticates release API requests. Backplane opts into Python 3.14,
+PSR 10.6.2 and `ubuntu-latest`; the shared GitPython pin is retained.
+
+The caller is managed in GCF at
+`gha_sync/workflows/repo/backplane/semantic-release.yml`. Change shared behavior
+in GCF and caller settings at that sync source before updating this repository.
+The initial caller pins the shared implementation commit; GCF's release pin
+updater replaces it with a published version during a later release. Merge the
+GCF change before this caller, then perform the separately authorized release.
+Never print key values.
 
 ## Troubleshooting
 
