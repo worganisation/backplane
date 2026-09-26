@@ -145,6 +145,10 @@ build_command = """
     git add uv.lock
   """
 
+# Git pushes use checkout's SSH deploy key; GH_TOKEN still creates GitHub releases.
+[tool.semantic_release.remote]
+ignore_token_for_push = true
+
 [tool.semantic_release.commit_parser_options]
 allowed_tags = [
   "build",
