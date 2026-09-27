@@ -2,6 +2,134 @@
 
 <!-- version list -->
 
+## v0.8.0 (2026-09-27)
+
+### Bug Fixes
+
+- Keep atomic vault writes on the destination filesystem
+  ([#105](https://github.com/worganisation/backplane/pull/105),
+  [`af98e85`](https://github.com/worganisation/backplane/commit/af98e85d8774cd4ad383e9006697c1bfa0957f0a))
+
+- **ci**: Use the GCF deploy-key release workflow
+  ([#106](https://github.com/worganisation/backplane/pull/106),
+  [`26e70d9`](https://github.com/worganisation/backplane/commit/26e70d9388af8fa74579ddbe2a2dcbb0854af176))
+
+### Chores
+
+- Use uv for Dependabot updates ([#73](https://github.com/worganisation/backplane/pull/73),
+  [`09fc0f3`](https://github.com/worganisation/backplane/commit/09fc0f3c5aee21100acfe6e1d00b92a589e6807a))
+
+- 🔄 synced file(s) with worganisation/github-config-files
+  ([#107](https://github.com/worganisation/backplane/pull/107),
+  [`4978888`](https://github.com/worganisation/backplane/commit/4978888bfe04c10115aa09acd468cb80de71b771))
+
+- **ci**: Align workflows with GCF ([#76](https://github.com/worganisation/backplane/pull/76),
+  [`f0930a7`](https://github.com/worganisation/backplane/commit/f0930a75aeac4479ef34473d31f91ba5c30a94b8))
+
+- **deps**: Bump aiohttp from 3.14.1 to 3.14.3
+  ([#71](https://github.com/worganisation/backplane/pull/71),
+  [`0dde22c`](https://github.com/worganisation/backplane/commit/0dde22c28f0402b3021b4c454720b4b7ab158ee2))
+
+- **deps**: Bump anyio from 4.13.0 to 4.14.2
+  ([#100](https://github.com/worganisation/backplane/pull/100),
+  [`8735a41`](https://github.com/worganisation/backplane/commit/8735a41d4514f8318ada9f91ab9ae68fa4f72bfd))
+
+- **deps**: Bump cryptography from 48.0.1 to 50.0.0
+  ([#72](https://github.com/worganisation/backplane/pull/72),
+  [`6ec7ff6`](https://github.com/worganisation/backplane/commit/6ec7ff6089552c2de69d21f10eea9be5c4706584))
+
+- **deps**: Bump pydantic-ai from 1.102.0 to 1.106.0
+  ([#74](https://github.com/worganisation/backplane/pull/74),
+  [`c8493b6`](https://github.com/worganisation/backplane/commit/c8493b653d4a4e55e7d341da037c1d06de3732cd))
+
+- **deps**: Bump python-semantic-release/python-semantic-release from 10.6.1 to 10.6.2
+  ([#79](https://github.com/worganisation/backplane/pull/79),
+  [`30cc9e7`](https://github.com/worganisation/backplane/commit/30cc9e7e60439204d7b06468e5e5b93d6328e576))
+
+- **deps**: Bump tailscale/github-action from 4.1.2 to 4.1.3
+  ([#81](https://github.com/worganisation/backplane/pull/81),
+  [`5a12f27`](https://github.com/worganisation/backplane/commit/5a12f272388ece51679d5e6b375ed800e585b714))
+
+- **deps**: Bump the uv-dependencies group with 7 updates
+  ([#101](https://github.com/worganisation/backplane/pull/101),
+  [`58b4af0`](https://github.com/worganisation/backplane/commit/58b4af0ce1377a274398d49c34999d746ad593d8))
+
+- **deps**: Configure Renovate updates ([#102](https://github.com/worganisation/backplane/pull/102),
+  [`945db88`](https://github.com/worganisation/backplane/commit/945db8885981d44299592e171e58ec96e6aa397b))
+
+- **deps**: Update fastmcp requirement from >=3.3.1 to >=3.4.7
+  ([#82](https://github.com/worganisation/backplane/pull/82),
+  [`ba89bdf`](https://github.com/worganisation/backplane/commit/ba89bdfa074d260c60ec4d64d1b3c44c02e3f30f))
+
+- **deps**: Update pydantic requirement from >=2.10 to >=2.13.5
+  ([#89](https://github.com/worganisation/backplane/pull/89),
+  [`ee4b235`](https://github.com/worganisation/backplane/commit/ee4b235f4cb0202f075aebdb45ccb7fd6324d6c1))
+
+- **deps**: Update pydantic-ai requirement from >=1.106.0 to >=2.36.0
+  ([#92](https://github.com/worganisation/backplane/pull/92),
+  [`b0d0867`](https://github.com/worganisation/backplane/commit/b0d08670313a396a5686da3092aa188213c8a660))
+
+- **deps**: Update pydantic-settings requirement from >=2.14.2 to >=2.15.0
+  ([#83](https://github.com/worganisation/backplane/pull/83),
+  [`bfdcaf2`](https://github.com/worganisation/backplane/commit/bfdcaf27b0802fb6a830f9dcb9801fee99f3c0bb))
+
+- **deps**: Update rapidfuzz requirement from >=3.0 to >=3.14.5
+  ([#91](https://github.com/worganisation/backplane/pull/91),
+  [`702e52c`](https://github.com/worganisation/backplane/commit/702e52c25609f95c94383c2597cc863c54b65905))
+
+- **deps**: Update uvicorn requirement from >=0.46.0 to >=0.52.4
+  ([#86](https://github.com/worganisation/backplane/pull/86),
+  [`f7d0bcd`](https://github.com/worganisation/backplane/commit/f7d0bcddb791e1ad5053ef6e1dd9b38e9aad66b1))
+
+- **deps-dev**: Update basedpyright requirement from >=1.39.7 to >=1.39.10
+  ([#84](https://github.com/worganisation/backplane/pull/84),
+  [`12e6f29`](https://github.com/worganisation/backplane/commit/12e6f29263ce9585ad9f8bc90dad94ad8e11cc30))
+
+- **deps-dev**: Update diff-cover requirement from >=10.2.0 to >=10.5.1
+  ([#90](https://github.com/worganisation/backplane/pull/90),
+  [`dc6f027`](https://github.com/worganisation/backplane/commit/dc6f02716ff2437aa76118b16199a8df6a62b871))
+
+- **deps-dev**: Update pytest requirement from >=8.0 to >=9.1.1
+  ([#88](https://github.com/worganisation/backplane/pull/88),
+  [`6d2d229`](https://github.com/worganisation/backplane/commit/6d2d229e03f199cb68a67b06d1382a176bf0cd9c))
+
+- **deps-dev**: Update pytest-asyncio requirement from >=0.25 to >=1.4.0
+  ([#93](https://github.com/worganisation/backplane/pull/93),
+  [`6c55c39`](https://github.com/worganisation/backplane/commit/6c55c39dd56cef7ae0fbac31b3fc11130a938981))
+
+- **deps-dev**: Update pytest-cov requirement from >=7.0.0 to >=7.1.0
+  ([#80](https://github.com/worganisation/backplane/pull/80),
+  [`13df629`](https://github.com/worganisation/backplane/commit/13df6299725674701f12d4a3b15c60bb4574114a))
+
+- **deps-dev**: Update pytest-env requirement from >=1.2.0 to >=1.7.0
+  ([#87](https://github.com/worganisation/backplane/pull/87),
+  [`ad3e9b5`](https://github.com/worganisation/backplane/commit/ad3e9b573dc486f212e308177c48896acb3a2bb9))
+
+- **deps-dev**: Update pytest-mock requirement from >=3.14 to >=3.15.1
+  ([#85](https://github.com/worganisation/backplane/pull/85),
+  [`8ca98b0`](https://github.com/worganisation/backplane/commit/8ca98b0e4f3b809de40e24cf4ae882f42852959b))
+
+- **sync**: Pin github-config-files workflows to 0.8.6
+  ([#78](https://github.com/worganisation/backplane/pull/78),
+  [`96f7846`](https://github.com/worganisation/backplane/commit/96f784691e3240ca39c6bf847d20091a061f2102))
+
+- **sync**: Pin github-config-files workflows to 0.8.7
+  ([#99](https://github.com/worganisation/backplane/pull/99),
+  [`b1264d3`](https://github.com/worganisation/backplane/commit/b1264d3105d2c9f592b24059f1533dff90b6609a))
+
+### Features
+
+- Add REST API for vault operations ([#70](https://github.com/worganisation/backplane/pull/70),
+  [`2233bcb`](https://github.com/worganisation/backplane/commit/2233bcb2a29b8d7dbb75a4d299eeec579f938253))
+
+- Enhance MCP OAuth client registration ([#69](https://github.com/worganisation/backplane/pull/69),
+  [`db4aa27`](https://github.com/worganisation/backplane/commit/db4aa277aad58aaabf31ff6ec066eb1d5b69c04a))
+
+- **ci**: Deploy published releases after manual release creation
+  ([#103](https://github.com/worganisation/backplane/pull/103),
+  [`ccd5ab9`](https://github.com/worganisation/backplane/commit/ccd5ab99b5f39b441982b57e0ac786c244667a8f))
+
+
 ## v0.7.0 (2026-07-26)
 
 ### Bug Fixes
