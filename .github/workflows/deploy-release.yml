@@ -29,6 +29,7 @@ jobs:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci
+          ping: ${{ vars.BACKPLANE_TAILSCALE_HOSTNAME }}
 
       - name: Set up SSH key and known hosts
         env:
@@ -38,7 +39,19 @@ jobs:
           install -d -m 700 "${RUNNER_TEMP}/ssh"
           install -m 600 /dev/null "${RUNNER_TEMP}/ssh/deploy_key"
           printf '%s\n' "${DEPLOY_SSH_PRIVATE_KEY}" > "${RUNNER_TEMP}/ssh/deploy_key"
-          ssh-keyscan -H "${TAILSCALE_HOSTNAME}" > "${RUNNER_TEMP}/ssh/known_hosts"
+          for attempt in {1..6}; do
+            if ssh-keyscan -T 10 -H "${TAILSCALE_HOSTNAME}" \
+              > "${RUNNER_TEMP}/ssh/known_hosts" \
+              && test -s "${RUNNER_TEMP}/ssh/known_hosts"; then
+              exit 0
+            fi
+            echo "SSH host-key scan attempt ${attempt}/6 failed."
+            if [ "${attempt}" -lt 6 ]; then
+              sleep 5
+            fi
+          done
+          echo "::error::Backplane SSH is unreachable; check Tailscale routing, access rules and port 22."
+          exit 1
 
       - name: Deploy
         env:
@@ -50,7 +63,13 @@ jobs:
           ssh \
             -i "${RUNNER_TEMP}/ssh/deploy_key" \
             -o IdentitiesOnly=yes \
+            -o BatchMode=yes \
+            -o ConnectTimeout=10 \
             -o StrictHostKeyChecking=yes \
             -o UserKnownHostsFile="${RUNNER_TEMP}/ssh/known_hosts" \
             "${DEPLOY_SSH_USER}@${TAILSCALE_HOSTNAME}" \
             "cd '${INSTALL_DIR}' && just deploy '${TAG}'"
+
+      - name: Remove temporary SSH credentials
+        if: always()
+        run: rm -f "${RUNNER_TEMP}/ssh/deploy_key" "${RUNNER_TEMP}/ssh/known_hosts"

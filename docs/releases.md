@@ -34,6 +34,22 @@ Never print key values.
 
 ## Troubleshooting
 
+Release run `36356970753` successfully published `0.8.0`, but deployment run
+`36357013796` failed during the first SSH host-key scan, before running any remote
+deployment command. The scan started immediately after Tailscale connected and
+timed out after five seconds. Read-only inspection found Backplane online at
+`backplane.tail9d999f.ts.net`, with OpenSSH listening on port 22 and an incoming
+Tailscale filter allowing that traffic. This is consistent with a connection
+startup delay, but does not establish the runner-side cause.
+
+The deployment workflow now verifies Tailscale connectivity and retries the SSH
+scan up to six times with ten-second scan timeouts and five-second gaps. A
+persistent failure still stops before deployment and reports the network checks
+needed. Temporary SSH files are removed even when setup or deployment fails.
+If connectivity verification fails, inspect the CI node's access to Backplane;
+a successful Tailscale login alone does not establish that route. The workflow
+continues to obtain host keys through the tailnet scan, as before.
+
 Run `36049788133` failed with GH013 because its HTTPS bot-token push had no ruleset
 bypass. Adding a deploy key alone is insufficient: checkout must use it, Semantic
 Release must use SSH for pushes, and the ruleset must permit deploy-key bypass.
