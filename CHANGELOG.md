@@ -2,6 +2,21 @@
 
 <!-- version list -->
 
+## v0.8.1 (2026-09-28)
+
+### Bug Fixes
+
+- **ci**: Wait for Backplane SSH before deployment
+  ([#108](https://github.com/worganisation/backplane/pull/108),
+  [`1662ed3`](https://github.com/worganisation/backplane/commit/1662ed39e395ad987bb3b468c96efa21bc6fc972))
+
+### Chores
+
+- **deps**: Update tailscale/github-action action to v4.2.0
+  ([#109](https://github.com/worganisation/backplane/pull/109),
+  [`90dc0ac`](https://github.com/worganisation/backplane/commit/90dc0ac66c82355589f3e49bb242a07a1e017bbd))
+
+
 ## v0.8.0 (2026-09-27)
 
 ### Bug Fixes
