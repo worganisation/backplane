@@ -142,7 +142,7 @@ that remains an MCP-only route when configured.
 
 This section is generated automatically from the registered MCP surface. Run `prek run update-readme-mcp-catalog` to refresh it after changing tools or resources.
 
-**Server:** `Backplane` v0.7.0
+**Server:** `Backplane` v0.8.0
 
 ### Server instructions
 
