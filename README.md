@@ -225,12 +225,17 @@ Only set:
 - `priority` when urgency/importance is explicit.
 - `title` when the user gives a clear title.
 
+Supply a stable `idempotency_key` for each operation and reuse it with identical fields on retries.
+
+A saved task can return warnings for incomplete links; fix their cause and retry with the same key.
+
 If timing is implied but not explicit, leave `due=null` and keep the timing words in `description`.
 
 | Parameter | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `description` | `string` | yes | — | Natural-language task description. Include distinctive names, nouns, and context that may help matching and metadata extraction. |
 | `due` | `string`? | no | `null` | Optional due date in YYYY-MM-DD. Only set when explicit. |
+| `idempotency_key` | `string`? | no | `null` | Stable operation key; reuse with identical input on retry. |
 | `link_capture_id` | `string`? | no | `null` | Confirmed inbox capture ID to link. Omit unless the user confirmed the capture. |
 | `priority` | `low` \| `medium` \| `high`? | no | `null` | Optional priority override. Only set when explicit. |
 | `title` | `string`? | no | `null` | Optional title override. Omit unless the user supplied a clear title. |

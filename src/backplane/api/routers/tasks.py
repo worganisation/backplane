@@ -35,6 +35,7 @@ async def create_task(request: CreateTaskRequest) -> CreateTaskResponse:
         due=request.due,
         priority=request.priority,
         link_capture_id=request.link_capture_id,
+        idempotency_key=request.idempotency_key,
     )
     outcome = task_creation_outcome(task)
     return CreateTaskResponse.model_validate(

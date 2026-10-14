@@ -69,6 +69,7 @@ async def test__create_task__forwards_fields_to_task_service(
         due=due,
         priority=priority,
         link_capture_id=None,
+        idempotency_key=None,
     )
 
     assert result.metadata.title == returned_title
@@ -81,6 +82,7 @@ async def test__create_task__forwards_fields_to_task_service(
         due=due,
         priority=priority,
         link_capture_id=None,
+        idempotency_key=None,
     )
 
 
@@ -212,6 +214,7 @@ async def test__create_task__forwards_link_capture_id(
     _ = await tasks.create_task(
         description="backup logs",
         link_capture_id="2026-05-25T21:15",
+        idempotency_key=None,
     )
 
     mock_create_task.assert_awaited_once_with(
@@ -220,6 +223,7 @@ async def test__create_task__forwards_link_capture_id(
         due=None,
         priority=None,
         link_capture_id="2026-05-25T21:15",
+        idempotency_key=None,
     )
 
 
