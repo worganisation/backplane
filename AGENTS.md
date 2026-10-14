@@ -81,7 +81,7 @@ src/backplane/
 
 ### Key design patterns
 
-**ObsidianService** (`services/obsidian.py`) is an async context manager factory. `daily_note(date, create_if_not_exists, read_only)` resolves the vault path, optionally creates a missing note from the vault's configured template (read from `.obsidian/daily-notes.json`), and delegates to `MarkdownDocument`. Template `{{date}}` / `{{date:FORMAT}}` placeholders are expanded using Obsidian/moment.js token syntax (`YYYY`, `MMMM`, `Do`, etc.) via `substitute_obsidian_core_date_variables`.
+**ObsidianService** (`services/obsidian.py`) is an async context manager factory. `daily_note(date, create_if_not_exists, read_only)` resolves the vault path, optionally creates a missing note from the vault's configured template (read from `.obsidian/daily-notes.json`), and delegates to `MarkdownDocument`. When no template setting is present, it uses `Templates/Daily Note.md` if available. Invalid configuration, unsafe paths, missing explicitly configured templates, and template read errors prevent note creation. Template `{{date}}` / `{{date:FORMAT}}` placeholders are expanded using Obsidian/moment.js token syntax (`YYYY`, `MMMM`, `Do`, etc.) via `substitute_obsidian_core_date_variables`.
 
 **MarkdownDocument / MarkdownSection** (`utils/markdown.py`) parse a markdown file into front matter (via `ruamel.yaml`, preserving formatting) and a tree of `MarkdownSection` objects keyed by heading. Key constructor fields: `create_if_not_exists` (bool) and `initial_content` (str | None, written as the new file body when creating). Heading matching in `get_section()` is case- and format-insensitive (inline markdown stripped). `mdformat` normalizes content on serialization. On `__aexit__`, if `validate_file_content_unchanged` is true and the on-disk content differs from the rendered output, a `ValueError` is raised before writing.
 
@@ -93,7 +93,7 @@ src/backplane/
 
 - Backplane writes `.md` files directly to the vault filesystem; Obsidian picks up changes automatically.
 - Daily notes have stable headings (e.g. `## Tasks`, `## Ideas`) enabling deterministic semantic editing.
-- Missing daily notes are created automatically (from the vault's template if configured, otherwise empty). Missing headings are created when `create_section_if_not_exists` is requested; otherwise the daily-note operation raises `InformationRequiredError`.
+- Missing daily notes are created automatically from the configured template or the conventional `Templates/Daily Note.md`, otherwise empty. Templates apply only to missing notes. Missing headings in existing notes are created when `create_section_if_not_exists` is requested; otherwise the daily-note operation raises `InformationRequiredError`.
 
 ### API endpoints
 

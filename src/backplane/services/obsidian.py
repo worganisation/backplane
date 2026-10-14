@@ -37,35 +37,54 @@ class ObsidianService:
 
     @staticmethod
     async def _daily_note_template_source() -> str | None:
-        """Load the daily note template file configured in ``.obsidian/daily-notes.json``.
+        """Load the configured template, or the conventional ``Templates/Daily Note.md``.
 
         Returns:
-            Raw template file contents, or ``None`` if config or template is missing.
+            Raw template contents, or ``None`` if the unconfigured fallback is missing.
+
+        Raises:
+            UserError: If the configuration is invalid, the template path escapes the
+                vault, or an explicitly configured template is missing.
         """
         config_path = SETTINGS.obsidian_vault_path / ".obsidian" / "daily-notes.json"
         try:
             raw = await config_path.read_text(encoding="utf-8")
         except FileNotFoundError:
-            return None
+            raw = "{}"
 
         try:
             parsed_unknown = json.loads(raw)  # pyright: ignore[reportAny]
-        except json.JSONDecodeError:
-            return None
+        except json.JSONDecodeError as error:
+            msg = "Invalid daily-note configuration: .obsidian/daily-notes.json must contain valid JSON."
+            raise exc.UserError(message=msg) from error
 
         if not isinstance(parsed_unknown, dict):
-            return None
+            msg = "Invalid daily-note configuration: .obsidian/daily-notes.json must contain an object."
+            raise exc.UserError(message=msg)
 
         data = cast("dict[str, object]", parsed_unknown)
         rel = data.get("template")
-        if not isinstance(rel, str) or not rel:
-            return None
+        if rel is not None and not isinstance(rel, str):
+            msg = "Invalid daily-note configuration: template must be a vault-relative path string."
+            raise exc.UserError(message=msg)
+
+        configured = bool(rel)
+        if not rel:
+            rel = str(VAULT_PATHS.templates_dir / "Daily Note.md")
 
         path_str = rel if rel.endswith(".md") else f"{rel}.md"
-        template_path = SETTINGS.obsidian_vault_path / path_str
+        try:
+            template_path = await resolve_under_root(path_str)
+        except ValueError as error:
+            raise exc.UserError(message=str(error)) from error
+
         try:
             return await template_path.read_text(encoding="utf-8")
-        except FileNotFoundError:
+        except FileNotFoundError as error:
+            if configured:
+                msg = f"Daily-note template not found: {path_str}. Check .obsidian/daily-notes.json."
+                raise exc.UserError(message=msg) from error
+
             return None
 
     @asynccontextmanager
@@ -81,7 +100,7 @@ class ObsidianService:
         Args:
             date: Date of the daily note. Defaults to today's local date.
             create_if_not_exists: If true, create the note when missing using the vault's
-                daily note template from ``.obsidian/daily-notes.json`` when configured.
+                configured daily-note template, or ``Templates/Daily Note.md`` if present.
             read_only: When true, require file content unchanged on exit (no accidental writes).
 
         Yields:
