@@ -857,7 +857,7 @@ async def _annotate_capture(match: Capture, task_link: str) -> str | None:
         An actionable warning if annotation failed, otherwise None.
     """
     if match.kind == "idea":
-        return
+        return None
 
     try:
         async with ObsidianService().idea_inbox() as inbox:
