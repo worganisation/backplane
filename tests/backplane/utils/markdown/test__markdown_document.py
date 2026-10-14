@@ -9,6 +9,8 @@ if TYPE_CHECKING:
 
 import pathlib
 
+import pytest
+
 from backplane.utils.markdown import MarkdownDocument
 
 
@@ -66,3 +68,58 @@ async def test__markdown_document__persists_edits_on_exit(
 
     text = await target.read_text(encoding="utf-8")
     assert "second thought" in text
+
+
+@pytest.mark.parametrize("read_only", [False, True])
+@pytest.mark.parametrize(
+    "source",
+    [
+        "Introductory prose.\n\n- A leading list item\n",
+        "Introductory prose.\n\n# Note\n\n## Tasks\n\nExisting task.\n",
+        '---\nstatus: "active"\n---\nIntroductory prose.\n',
+        (
+            '---\nstatus: "active"\n---\n'
+            "Introductory prose.\n\n```markdown\n# A fenced heading\n```\n\n"
+            "# Note\n\n## Tasks\n\nExisting task.\n"
+        ),
+        "```markdown\n# A fenced heading\n```\n",
+    ],
+)
+async def test__markdown_document__preserves_preamble_on_render_and_save(
+    obsidian_vault: AsyncPath,
+    source: str,
+    *,
+    read_only: bool,
+) -> None:
+    """Leading body content survives read-only rendering and a save without edits."""
+    rel = pathlib.PurePath("note.md")
+    target = obsidian_vault / rel
+    _ = await target.write_text(source, encoding="utf-8")
+
+    async with MarkdownDocument(vault_path=rel, read_only=read_only) as doc:
+        assert doc.render() == source
+
+    assert await target.read_text(encoding="utf-8") == source
+
+
+@pytest.mark.parametrize("existing_section", [False, True])
+async def test__markdown_document__preserves_preamble_when_editing_sections(
+    obsidian_vault: AsyncPath,
+    *,
+    existing_section: bool,
+) -> None:
+    """Editing or creating a section retains frontmatter and preceding prose."""
+    rel = pathlib.PurePath("note.md")
+    target = obsidian_vault / rel
+    preamble = '---\nstatus: "active"\n---\nIntroductory prose.\n'
+    sections = "\n# Note\n\n## Tasks\n\nExisting task.\n" if existing_section else ""
+    _ = await target.write_text(preamble + sections, encoding="utf-8")
+
+    async with MarkdownDocument(vault_path=rel) as doc:
+        doc.get_section(("Note", "Tasks"), create_if_not_exists=True).append_content(
+            "New task.",
+        )
+
+    expected_content = "Existing task.\nNew task." if existing_section else "New task."
+    expected = preamble + "\n# Note\n\n## Tasks\n\n" + expected_content + "\n"
+    assert await target.read_text(encoding="utf-8") == expected
