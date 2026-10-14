@@ -17,11 +17,11 @@ if TYPE_CHECKING:
 
 
 @pytest.mark.anyio
-async def test__create_task_uses_matched_capture_text_for_metadata(
+async def test__create_task_keeps_matched_capture_context_for_short_request(
     obsidian_vault: AsyncPath,
     mocker: MockerFixture,
 ) -> None:
-    """Metadata extraction should use the inbox capture text, not the short query."""
+    """A short request retains both its text and the capture's useful background."""
     capture_date = today().isoformat()
     capture_text = (
         "Add Jordan's calendar feed to the shared dashboard and notify them "
@@ -59,4 +59,74 @@ async def test__create_task_uses_matched_capture_text_for_metadata(
 
     _ = await TaskService.create_task("calendar dashboard")
 
-    _ = extract.assert_awaited_once_with(capture_text, None, None)
+    _ = extract.assert_awaited_once_with(
+        "Current task request (authoritative):\ncalendar dashboard\n\n"
+        "Linked inbox capture (background context; the current request takes "
+        f"precedence if details differ):\n{capture_text}",
+        None,
+        None,
+    )
+
+
+@pytest.mark.parametrize("explicit_link", [False, True])
+async def test__create_task_preserves_expanded_request_with_capture_provenance(
+    obsidian_vault: AsyncPath,
+    mocker: MockerFixture,
+    *,
+    explicit_link: bool,
+) -> None:
+    """Explicit and fuzzy links retain new details in metadata and the task body."""
+    capture_date = today().isoformat()
+    capture_id = f"{capture_date}T14:30"
+    capture_text = "Build a garden dashboard"
+    description = (
+        "Build a garden dashboard with soil moisture graphs and a frost alert\n"
+        "Send the frost alert to Jordan."
+    )
+    inbox = obsidian_vault / ObsidianService.IDEA_INBOX_PATH
+    board = obsidian_vault / VAULT_PATHS.task_board_path
+    await inbox.parent.mkdir(parents=True, exist_ok=True)
+    await board.parent.mkdir(parents=True, exist_ok=True)
+    _ = await board.write_text("## Backlog\n\n", encoding="utf-8")
+    _ = await inbox.write_text(
+        f"# {capture_date}\n\n## 14:30\n\n{capture_text}\n",
+        encoding="utf-8",
+    )
+    metadata = TaskMetadata(
+        title="Build garden dashboard",
+        domains=[],
+        resources=[],
+        projects=[],
+        people=[],
+    )
+    extract = mocker.patch(
+        "backplane.services.tasks._extract_metadata",
+        new=mocker.AsyncMock(return_value=metadata),
+    )
+
+    result = await TaskService.create_task(
+        description,
+        link_capture_id=capture_id if explicit_link else None,
+    )
+
+    assert result.matched_capture_id == capture_id
+    _ = extract.assert_awaited_once_with(
+        f"Current task request (authoritative):\n{description}\n\n"
+        "Linked inbox capture (background context; the current request takes "
+        f"precedence if details differ):\n{capture_text}",
+        None,
+        None,
+    )
+    note = await (obsidian_vault / result.path).read_text(encoding="utf-8")
+    assert (
+        "## Description\n\n"
+        "> Build a garden dashboard with soil moisture graphs and a frost alert\n"
+        "> Send the frost alert to Jordan.\n\n"
+    ) in note
+    assert f"source_capture: {capture_id}\n" in note
+    assert (
+        f"## Source Capture\n\n[[Inbox/Ideas|Ideas]] ({capture_id})\n\n> {capture_text}\n"
+    ) in note
+    inbox_text = await inbox.read_text(encoding="utf-8")
+    assert capture_text in inbox_text
+    assert f"↗ {result.metadata.canonical_link}" in inbox_text

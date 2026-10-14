@@ -62,7 +62,13 @@ async def test__create_task_uses_explicit_capture_link(
 
     assert result.matched_capture_id == f"{capture_date}T09:15"
     assert result.candidate_captures == []
-    _ = mock_extract.assert_awaited_once_with(capture_text, None, None)
+    _ = mock_extract.assert_awaited_once_with(
+        "Current task request (authoritative):\nbackup logs\n\n"
+        "Linked inbox capture (background context; the current request takes "
+        f"precedence if details differ):\n{capture_text}",
+        None,
+        None,
+    )
     mock_find_match.assert_not_called()
 
 
