@@ -17,6 +17,8 @@ class TaskCreationOutcome(BaseModel, frozen=True):
 
     metadata: VaultNoteMetadata
     slug: str
+    warnings: list[str] = Field(default_factory=list)
+    replayed: bool = False
     matched_capture_id: str | None = None
     candidate_captures: list[CaptureCandidate] = Field(default_factory=list)
     domains_created: list[str] = Field(default_factory=list)
@@ -37,6 +39,8 @@ def task_creation_outcome(task: CreateTaskResult) -> TaskCreationOutcome:
     return TaskCreationOutcome(
         metadata=task.metadata,
         slug=task.slug,
+        warnings=task.warnings,
+        replayed=task.replayed,
         matched_capture_id=task.matched_capture_id,
         candidate_captures=task.candidate_captures,
         domains_created=task.domains_created,

@@ -51,6 +51,12 @@ class MessageResponse(BaseModel, frozen=True):
     message: str
 
 
+class RecordIdeaResponse(MessageResponse, frozen=True):
+    """Confirmation and stable ID for a recorded idea."""
+
+    id: str
+
+
 class MoveNoteResponse(MessageResponse, frozen=True):
     """Response confirming a note move."""
 
@@ -120,6 +126,7 @@ class CreateTaskRequest(BaseModel, frozen=True):
     due: str | None = None
     priority: Priority | None = None
     link_capture_id: str | None = None
+    idempotency_key: Annotated[str | None, Field(min_length=1)] = None
 
 
 class LinkCaptureRequest(BaseModel, frozen=True):

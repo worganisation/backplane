@@ -9,8 +9,8 @@ if TYPE_CHECKING:
 
 import datetime as dt
 
+from backplane.services.ideas import parse_inbox as _parse_inbox
 from backplane.services.obsidian import ObsidianService
-from backplane.services.tasks import _parse_inbox
 from backplane.utils import today
 from backplane.utils.markdown import MarkdownDocument
 

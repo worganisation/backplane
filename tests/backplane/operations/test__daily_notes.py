@@ -54,4 +54,4 @@ async def test__record_idea__returns_confirmation(
 
     result = await record_idea("Automate rain alerts")
 
-    assert result == "Idea recorded successfully."
+    assert result.startswith("Idea recorded successfully. ID: idea-")

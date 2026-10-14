@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import datetime as dt
+import hashlib
 import io
+import json
 import operator
 from dataclasses import dataclass
 from functools import cache
@@ -16,6 +18,7 @@ from pydantic_ai import Agent, AgentRunResult
 from rapidfuzz import fuzz
 
 from backplane.services import ObsidianService
+from backplane.services.ideas import Capture, IdeaService
 from backplane.services.vault_entities import VaultEntityService
 from backplane.utils import (
     SETTINGS,
@@ -34,8 +37,8 @@ from backplane.utils import (
     obsidian_link_target_from_path,
     resolve_under_root,
     safe_slug,
-    today,
 )
+from backplane.utils.helpers.files import vault_write_lock
 from backplane.utils.kanban import append_board_card
 from backplane.utils.markdown import note_title_from_markdown
 
@@ -46,17 +49,6 @@ _MIN_AUTO_GAP: Final = 10.0
 _LOG_TEXT_MAX_LEN: Final = 80
 _MATCH_TOP_CANDIDATES: Final = 3
 _STUB_NOTE_TYPES: Final = frozenset({"domain", "person", "project", "resource"})
-
-
-@dataclass(frozen=True, slots=True)
-class Capture:
-    """A single timestamped entry from the idea inbox."""
-
-    id: str
-    date: str
-    time: str
-    text: str
-    path: AsyncPath
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,6 +79,8 @@ class CreateTaskResult(BaseModel, frozen=True, arbitrary_types_allowed=True):
     resources_created: list[str]
     projects_created: list[str]
     people_created: list[str]
+    warnings: list[str] = Field(default_factory=list)
+    replayed: bool = False
 
 
 class TaskMetadata(BaseModel):
@@ -154,6 +148,16 @@ class TaskMetadata(BaseModel):
     ] = ""
 
 
+class _TaskIntake(BaseModel, frozen=True):
+    """Retry identity and creation plan persisted atomically with the task note."""
+
+    key_digest: str | None
+    fingerprint: str
+    metadata: TaskMetadata
+    matched_capture_id: str | None
+    candidate_captures: list[CaptureCandidate]
+
+
 class TaskFrontmatter(BaseModel, frozen=True):
     """YAML frontmatter contract for task notes."""
 
@@ -185,6 +189,10 @@ class TaskFrontmatter(BaseModel, frozen=True):
                 "or null when created from free-text description."
             ),
         ),
+    ] = None
+    source_capture_link: Annotated[
+        str | None,
+        Field(description="Native Obsidian link to an individual idea note."),
     ] = None
     domains: Annotated[
         list[str],
@@ -262,7 +270,7 @@ class TaskFrontmatter(BaseModel, frozen=True):
         """
         buf = io.StringIO()
         YAML_LOADER.dump(self.model_dump(mode="python"), buf)  # pyright: ignore[reportUnknownMemberType]
-        return buf.getvalue()
+        return buf.getvalue().removeprefix("---\n")
 
 
 @cache
@@ -346,64 +354,6 @@ def _log_metadata_agent_run(result: AgentRunResult[TaskMetadata]) -> None:
         cost.output_price,
         cost.total_price,
     )
-
-
-def _parse_inbox(doc: MarkdownDocument, days: int | None = _INBOX_DAYS) -> list[Capture]:
-    """Parse captures from the inbox document.
-
-    Args:
-        doc: Loaded inbox MarkdownDocument.
-        days: How many calendar days back to search, or None for all captures.
-
-    Returns:
-        List of captures within the lookback window, in document order.
-    """
-    cutoff = today() - dt.timedelta(days=days) if days is not None else None
-    captures: list[Capture] = []
-
-    for date_section in doc.body:
-        try:
-            section_date = dt.date.fromisoformat(date_section.heading)
-        except ValueError:
-            continue
-
-        if cutoff is not None and section_date < cutoff:
-            continue
-
-        for time_section in date_section.sections:
-            capture_text = _clean_capture_text(time_section.content)
-            if not capture_text:
-                continue
-
-            captures.append(
-                Capture(
-                    id=f"{date_section.heading}T{time_section.heading}",
-                    date=date_section.heading,
-                    time=time_section.heading,
-                    text=capture_text,
-                    path=ObsidianService.IDEA_INBOX_PATH,
-                ),
-            )
-
-    return captures
-
-
-def _is_task_backlink_line(line: str) -> bool:
-    """Return whether a line is an appended task back-link annotation."""
-    normalized = line.strip().replace("\\", "")
-    return normalized.startswith("↗ [[") and normalized.endswith("]]")
-
-
-def _clean_capture_text(text: str | None) -> str:
-    """Return capture text without generated task back-link annotations."""
-    if text is None:
-        return ""
-
-    return "\n".join(
-        line.rstrip()
-        for line in text.strip().splitlines()
-        if not _is_task_backlink_line(line)
-    ).strip()
 
 
 def _fuzzy_score(query: str, text: str) -> float:
@@ -501,14 +451,9 @@ async def _load_recent_captures() -> list[Capture]:
     """Parse captures from the inbox within a default lookback window.
 
     Returns:
-        List of parsed captures; an empty list if the inbox file is absent.
+        List of recent captures; an empty list if no captures exist.
     """
-    try:
-        async with ObsidianService().idea_inbox(read_only=True) as inbox:
-            captures = _parse_inbox(inbox)
-    except FileNotFoundError:
-        logger.error("Idea inbox not found; skipping capture matching")
-        return []
+    captures = await IdeaService.load_captures(days=_INBOX_DAYS)
 
     logger.info(
         "Parsed {} inbox captures (lookback_days={})",
@@ -522,14 +467,9 @@ async def _load_all_captures() -> list[Capture]:
     """Load all inbox captures for exact-ID linking.
 
     Returns:
-        All inbox captures, or an empty list when the inbox is absent.
+        All individual and grouped captures, or an empty list if none exist.
     """
-    try:
-        async with ObsidianService().idea_inbox(read_only=True) as inbox:
-            captures = _parse_inbox(inbox, days=None)
-    except FileNotFoundError:
-        logger.error("Idea inbox not found; skipping capture linking")
-        return []
+    captures = await IdeaService.load_captures()
 
     logger.info("Parsed {} inbox captures for exact lookup", len(captures))
     return captures
@@ -671,13 +611,16 @@ async def _extract_metadata(
     description: str,
     title: str | None,
     priority: enums.Priority | None,
+    *,
+    fallback_description: str | None = None,
 ) -> TaskMetadata:
     """Extract structured metadata fields from a task description, with optional title and priority overrides.
 
     Args:
-        description: Raw task description text.
+        description: Task description and any labelled capture context for the model.
         title: Pre-supplied title to use unchanged; if provided, skips title extraction.
         priority: Pre-supplied priority to use unchanged; if provided, skips priority extraction.
+        fallback_description: Raw current request for fallback titles without model context.
 
     Returns:
         TaskMetadata with extracted fields, or fallback defaults if extraction fails.
@@ -714,7 +657,7 @@ async def _extract_metadata(
     except Exception:  # ruff:ignore[blind-except]
         logger.exception("Metadata extraction failed; using defaults")
         fallback = TaskMetadata(
-            title=title or description[:60],
+            title=title or (fallback_description or description)[:60],
             domains=[],
             resources=[],
             projects=[],
@@ -765,7 +708,7 @@ def _build_task_note(
         now: Creation timestamp (local time).
         metadata: Extracted task metadata.
         capture: Linked inbox entry, or None if the task was created directly.
-        description: Task description (used when no inbox entry is linked).
+        description: Current task description, authoritative even with a linked capture.
         due: Optional due date string (YYYY-MM-DD).
 
     Returns:
@@ -777,6 +720,11 @@ def _build_task_note(
         created=timestamp,
         updated=timestamp,
         source_capture=capture.id if capture else None,
+        source_capture_link=(
+            build_obsidian_link(capture.path)
+            if capture is not None and capture.kind == "idea"
+            else None
+        ),
         domains=_entity_wikilinks(enums.VaultEntityKind.DOMAIN, metadata.domains),
         resources=_entity_wikilinks(enums.VaultEntityKind.RESOURCE, metadata.resources),
         projects=_entity_wikilinks(enums.VaultEntityKind.PROJECT, metadata.projects),
@@ -786,15 +734,28 @@ def _build_task_note(
         due=due,
     )
 
-    description_text = (capture.text if capture else description).strip()
+    description_text = description.strip()
     blockquote = "\n".join(
         f"> {line}" if line.strip() else ">"
         for line in (description_text.splitlines() or [""])
     )
 
+    source_capture = ""
+    if capture is not None:
+        capture_quote = "\n".join(
+            f"> {line}" if line.strip() else ">"
+            for line in capture.text.strip().splitlines()
+        )
+        source_capture = (
+            "## Source Capture\n\n"
+            f"{build_obsidian_link(capture.path)} ({capture.id})\n\n"
+            f"{capture_quote}\n\n"
+        )
+
     body = (
         f"# {title}\n\n"
         f"## Description\n\n{blockquote}\n\n"
+        f"{source_capture}"
         f"## Next Action\n\n{metadata.next_action.strip()}\n\n"
         "## Notes\n\n"
     )
@@ -823,19 +784,22 @@ async def _ensure_stub(
         msg = f"Unsupported stub note type: {note_type!r}"
         raise ValueError(msg)
 
-    kind = enums.VaultEntityKind(note_type)
-    if await VaultEntityService.resolve_entity_path(kind, name) is not None:
-        logger.debug("Stub note already exists: {} {}", note_type, name)
-        return False
+    async with vault_write_lock():
+        kind = enums.VaultEntityKind(note_type)
+        if await VaultEntityService.resolve_entity_path(kind, name) is not None:
+            logger.debug("Stub note already exists: {} {}", note_type, name)
+            return False
 
-    provenance_note = f"Created automatically from task intake for {source_task_link}."
-    _ = await VaultEntityService.create_entity(
-        kind,
-        name,
-        provenance_note=provenance_note,
-    )
-    logger.info("Created stub note for {}: {}", note_type, name)
-    return True
+        provenance_note = (
+            f"Created automatically from task intake for {source_task_link}."
+        )
+        _ = await VaultEntityService.create_entity(
+            kind,
+            name,
+            provenance_note=provenance_note,
+        )
+        logger.info("Created stub note for {}: {}", note_type, name)
+        return True
 
 
 async def _create_stubs(
@@ -882,20 +846,32 @@ async def _create_stubs(
     return created
 
 
-async def _annotate_capture(match: Capture, task_link: str) -> None:
+async def _annotate_capture(match: Capture, task_link: str) -> str | None:
     """Best-effort: append a task back-link to the matched inbox capture.
 
     Args:
         match: The inbox capture to annotate.
         task_link: Canonical wikilink to the task note.
+
+    Returns:
+        An actionable warning if annotation failed, otherwise None.
     """
+    if match.kind == "idea":
+        return
+
     try:
         async with ObsidianService().idea_inbox() as inbox:
             section = inbox.get_section((match.date, match.time))
-            section.append_content(f"\n↗ {task_link}")
+            if f"↗ {task_link}" not in (section.content or "").replace("\\", ""):
+                section.append_content(f"\n↗ {task_link}")
         logger.debug("Annotated inbox capture {} with task {}", match.id, task_link)
-    except (ValueError, FileNotFoundError) as exc:
-        logger.warning("Could not annotate inbox capture: {}", exc)
+    except (ValueError, OSError, exc.BackplaneError) as error:
+        logger.warning("Could not annotate inbox capture: {}", error)
+        return (
+            f"Task saved; capture backlink failed. Repair the capture and retry: {error}"
+        )
+
+    return None
 
 
 async def _select_task_capture(
@@ -925,19 +901,23 @@ async def _select_task_capture(
 
 
 def _metadata_source(description: str, capture: Capture | None) -> str:
-    """Selects the text source for metadata extraction and logs the source choice.
+    """Keep the current request authoritative with linked capture background.
 
     Returns:
-        The selected text (from capture if available, otherwise from description).
+        Current task description with any separately labelled capture context.
     """
     if capture is not None:
         logger.info(
-            "Task metadata source: capture {} (description_len={} capture_len={})",
+            "Task metadata source: description with capture {} background (description_len={} capture_len={})",
             capture.id,
             len(description),
             len(capture.text),
         )
-        return capture.text
+        return (
+            f"Current task request (authoritative):\n{description}\n\n"
+            "Linked inbox capture (background context; the current request takes "
+            f"precedence if details differ):\n{capture.text}"
+        )
 
     logger.info(
         "Task metadata source: description only (len={})",
@@ -1016,6 +996,7 @@ async def _create_task_note(
     capture: Capture | None,
     description: str,
     due: str | None,
+    intake: _TaskIntake | None = None,
 ) -> AsyncPath:
     """Create the markdown task note for a new task.
 
@@ -1030,6 +1011,14 @@ async def _create_task_note(
         description=description,
         due=due,
     )
+
+    if intake is not None and intake.key_digest is not None:
+        buffer = io.StringIO()
+        YAML_LOADER.dump(  # pyright: ignore[reportUnknownMemberType]
+            {"backplane_task_intake": intake.model_dump_json()},
+            buffer,
+        )
+        note_content = note_content.replace("---\n", buffer.getvalue(), 1)
 
     path_in_vault = VAULT_PATHS.task_notes_dir / f"{filename_stem}.md"
     task_path = await resolve_under_root(path_in_vault)
@@ -1073,6 +1062,148 @@ async def _create_linked_stubs(
     )
 
 
+async def _find_saved_intake(
+    key_digest: str | None,
+    fingerprint: str,
+) -> tuple[AsyncPath, _TaskIntake] | None:
+    """Find a persisted request while the caller owns the vault write lock.
+
+    Returns:
+        Saved note path and creation metadata, or None for a new request.
+
+    Raises:
+        ConflictError: If a key is reused for different request fields.
+    """
+    if key_digest is None:
+        return None
+
+    tasks_dir = await resolve_under_root(VAULT_PATHS.task_notes_dir)
+    if not await tasks_dir.is_dir():
+        return None
+
+    async for entry in tasks_dir.iterdir():
+        if entry.suffix != ".md" or not await entry.is_file():
+            continue
+
+        path = VAULT_PATHS.task_notes_dir / entry.name
+        async with MarkdownDocument(vault_path=path, read_only=True) as document:
+            record = document.frontmatter.get("backplane_task_intake")
+
+        if not isinstance(record, str):
+            continue
+
+        intake = _TaskIntake.model_validate_json(record)
+        if intake.key_digest != key_digest:
+            continue
+
+        if intake.fingerprint != fingerprint:
+            msg = "Idempotency key already used with different task input."
+            raise exc.ConflictError(msg)
+
+        return path, intake
+
+    return None
+
+
+async def _ensure_task_board_card(note_path: AsyncPath) -> None:
+    """Add a card only when the task has no card anywhere on its board."""
+    async with vault_write_lock():
+        board_path = await resolve_under_root(VAULT_PATHS.task_board_path)
+        text = await board_path.read_text(encoding="utf-8")
+        link = build_obsidian_link(note_path)
+        if any(
+            line.lstrip().startswith("- [") and link in line for line in text.splitlines()
+        ):
+            return
+
+        await append_board_card(board_path, note_path)
+
+
+async def _finish_task_intake(
+    note_path: AsyncPath,
+    intake: _TaskIntake,
+    *,
+    replayed: bool,
+) -> CreateTaskResult:
+    """Attempt secondary links without misreporting a persisted task as failed.
+
+    Returns:
+        The saved task and actionable warnings for incomplete secondary writes.
+    """
+    metadata = intake.metadata
+    note_metadata = build_vault_note_metadata(
+        kind="task",
+        title=metadata.title,
+        path=note_path,
+    )
+    warnings: list[str] = []
+    try:
+        await _ensure_task_board_card(note_path)
+    except Exception as error:  # ruff:ignore[blind-except]
+        logger.exception("Task saved but board update failed: {}", note_path)
+        warnings.append(
+            f"Task saved; board update failed. Repair the board and retry: {error}",
+        )
+
+    domains_created: list[str] = []
+    resources_created: list[str] = []
+    projects_created: list[str] = []
+    people_created: list[str] = []
+    try:
+        (
+            domains_created,
+            resources_created,
+            projects_created,
+            people_created,
+        ) = await _create_linked_stubs(metadata, note_metadata.canonical_link)
+    except Exception as error:  # ruff:ignore[blind-except]
+        logger.exception("Task saved but linked entity creation failed: {}", note_path)
+        warnings.append(
+            f"Task saved; linked entity creation failed. Repair entity templates/access and retry: {error}",
+        )
+
+    if intake.matched_capture_id is not None:
+        try:
+            capture = _find_capture_by_id(
+                await _load_all_captures(),
+                intake.matched_capture_id,
+            )
+            if capture is None:
+                warnings.append(
+                    "Task saved; linked capture is missing. Restore it and retry to add its backlink.",
+                )
+            elif warning := await _annotate_capture(
+                capture,
+                note_metadata.canonical_link,
+            ):
+                warnings.append(warning)
+        except Exception as error:  # ruff:ignore[blind-except]
+            logger.exception("Task saved but capture annotation failed: {}", note_path)
+            warnings.append(
+                f"Task saved; capture backlink failed. Repair the capture and retry: {error}",
+            )
+
+    if warnings and intake.key_digest is None:
+        warnings.append(
+            "No idempotency key supplied: do not repeat create_task; repair links on the saved task directly.",
+        )
+
+    return CreateTaskResult(
+        slug=safe_slug(metadata.title),
+        path=note_path,
+        title=metadata.title,
+        metadata=note_metadata,
+        matched_capture_id=intake.matched_capture_id,
+        candidate_captures=intake.candidate_captures,
+        domains_created=domains_created,
+        resources_created=resources_created,
+        projects_created=projects_created,
+        people_created=people_created,
+        warnings=warnings,
+        replayed=replayed,
+    )
+
+
 @final
 class TaskService:
     """Service for creating structured task notes."""
@@ -1084,6 +1215,7 @@ class TaskService:
         due: str | None = None,
         priority: enums.Priority | None = None,
         link_capture_id: str | None = None,
+        idempotency_key: str | None = None,
     ) -> CreateTaskResult:
         """Create a task note from a description and return its vault details.
 
@@ -1095,79 +1227,69 @@ class TaskService:
             due (str | None): Due date in YYYY-MM-DD format.
             priority (enums.Priority | None): Priority override (low, medium, or high).
             link_capture_id (str | None): Exact capture ID to link when a specific inbox entry has been confirmed.
+            idempotency_key (str | None): Stable caller key reused only for retries of identical input.
 
         Returns:
             CreateTaskResult: Task metadata and vault details including the note path,
                 slug, title, vault note metadata, optional linked capture ID,
                 candidate captures for manual linking, and lists of newly created
                 domain, resource, project, and person entity stubs.
+
+        Raises:
+            BadRequestError: If the idempotency key is blank.
         """
+        if idempotency_key is not None and not idempotency_key.strip():
+            msg = "idempotency_key must not be blank."
+            raise exc.BadRequestError(msg)
+
+        key_digest = (
+            hashlib.sha256(idempotency_key.encode()).hexdigest()
+            if idempotency_key is not None
+            else None
+        )
+        fingerprint = hashlib.sha256(
+            json.dumps([description, title, due, priority, link_capture_id]).encode(),
+        ).hexdigest()
+        async with vault_write_lock():
+            saved = await _find_saved_intake(key_digest, fingerprint)
+
+        if saved is not None:
+            return await _finish_task_intake(*saved, replayed=True)
+
         capture_selection = await _select_task_capture(description, link_capture_id)
         metadata = await _extract_metadata(
             _metadata_source(description, capture_selection.matched),
             title,
             priority,
+            fallback_description=description,
         )
-        filename_stem, slug = await _unique_task_filename(metadata.title)
-
-        note_path = await _create_task_note(
-            filename_stem=filename_stem,
+        intake = _TaskIntake(
+            key_digest=key_digest,
+            fingerprint=fingerprint,
             metadata=metadata,
-            capture=capture_selection.matched,
-            description=description,
-            due=due,
-        )
-        note_metadata = build_vault_note_metadata(
-            kind="task",
-            title=metadata.title,
-            path=note_path,
-        )
-        board_path = await resolve_under_root(VAULT_PATHS.task_board_path)
-        await append_board_card(board_path, note_path)
-
-        (
-            domains_created,
-            resources_created,
-            projects_created,
-            people_created,
-        ) = await _create_linked_stubs(metadata, note_metadata.canonical_link)
-
-        if capture_selection.matched is not None:
-            await _annotate_capture(
-                capture_selection.matched,
-                note_metadata.canonical_link,
-            )
-
-        logger.info(
-            (
-                "Task intake complete: slug={} matched_capture_id={} "
-                "domains_created={} resources_created={} projects_created={} "
-                "people_created={}"
-            ),
-            slug,
-            capture_selection.matched.id if capture_selection.matched else None,
-            domains_created,
-            resources_created,
-            projects_created,
-            people_created,
-        )
-
-        return CreateTaskResult(
-            slug=slug,
-            path=note_path,
-            title=metadata.title,
-            metadata=note_metadata,
             matched_capture_id=(
                 capture_selection.matched.id if capture_selection.matched else None
             ),
             candidate_captures=[
                 _capture_payload(capture) for capture in capture_selection.candidates
             ],
-            domains_created=domains_created,
-            resources_created=resources_created,
-            projects_created=projects_created,
-            people_created=people_created,
         )
+        async with vault_write_lock():
+            saved = await _find_saved_intake(key_digest, fingerprint)
+            if saved is None:
+                filename_stem, _slug = await _unique_task_filename(metadata.title)
+                note_path = await _create_task_note(
+                    filename_stem=filename_stem,
+                    metadata=metadata,
+                    capture=capture_selection.matched,
+                    description=description,
+                    due=due,
+                    intake=intake,
+                )
+            else:
+                note_path, intake = saved
+
+        return await _finish_task_intake(note_path, intake, replayed=saved is not None)
 
     @staticmethod
     async def link_capture(task_slug: str, capture_id: str) -> str:
@@ -1214,6 +1336,9 @@ class TaskService:
         try:
             async with MarkdownDocument(vault_path=task_path) as task:
                 task.frontmatter["source_capture"] = capture.id
+                task.frontmatter["source_capture_link"] = (
+                    build_obsidian_link(capture.path) if capture.kind == "idea" else None
+                )
         except FileNotFoundError as error:
             logger.warning(
                 "Task {} not found while linking capture {}",
@@ -1226,6 +1351,6 @@ class TaskService:
                 detail={"resource": "task", "id": task_slug},
             ) from error
 
-        await _annotate_capture(capture, build_obsidian_link(task_path))
+        _ = await _annotate_capture(capture, build_obsidian_link(task_path))
         logger.info("Linked task {} to capture {}", task_path, capture_id)
         return f"Task {obsidian_link_target_from_path(str(task_path))} linked to capture {capture_id}."

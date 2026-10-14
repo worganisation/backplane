@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
-import datetime as dt
 from typing import TYPE_CHECKING
 
+from backplane.services.ideas import IdeaService
 from backplane.services.obsidian import ObsidianService
-from backplane.utils import SETTINGS, exc, format_human_date, today
+from backplane.utils import exc, format_human_date, today
 
 if TYPE_CHECKING:
+    import datetime as dt
+
     from backplane.services.vault_entities import UpdateMode
 
 
@@ -93,9 +95,5 @@ async def record_idea(idea: str) -> str:
     Returns:
         Confirmation message for the capture.
     """
-    now = dt.datetime.now(tz=SETTINGS.local_timezone)
-    heading_path = (now.strftime("%Y-%m-%d"), now.strftime("%H:%M"))
-    async with ObsidianService().idea_inbox() as idea_inbox:
-        section = idea_inbox.get_section(heading_path, create_if_not_exists=True)
-        section.append_content(idea)
-    return "Idea recorded successfully."
+    capture = await IdeaService.record(idea)
+    return f"Idea recorded successfully. ID: {capture.id}"
