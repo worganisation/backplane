@@ -66,7 +66,6 @@ class McpCatalog:
     """Collected MCP server metadata for documentation."""
 
     server_name: str
-    server_version: str
     instructions: str
     tools: tuple[McpToolDoc, ...]
     resources: tuple[McpResourceDoc, ...]
@@ -194,7 +193,6 @@ async def collect_mcp_catalog() -> McpCatalog:
 
     return McpCatalog(
         server_name=mcp.name,
-        server_version=mcp.version or "",
         instructions=mcp.instructions or "",
         tools=tuple(
             _tool_doc(tool) for tool in sorted(tools, key=lambda item: item.name)
@@ -244,7 +242,7 @@ def render_mcp_catalog_markdown(catalog: McpCatalog) -> str:
             "or resources."
         ),
         "",
-        f"**Server:** `{catalog.server_name}` v{catalog.server_version}",
+        f"**Server:** `{catalog.server_name}`",
         "",
         "### Server instructions",
         "",
