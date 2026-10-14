@@ -76,9 +76,8 @@ async def test__create_api_app__reads_daily_notes_and_records_ideas(
     assert "A useful day." in daily_note.json()["markdown"]
     assert idea.status_code == 201
     assert idea.json()["message"] == "Idea recorded successfully."
-    assert "Correlate visits with calendar events." in await ideas_path.read_text(
-        encoding="utf-8",
-    )
+    assert idea.json()["id"].startswith("idea-")
+    assert not await ideas_path.read_text(encoding="utf-8")
 
 
 async def test__create_api_app__returns_domain_errors_as_json(

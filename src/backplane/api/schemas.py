@@ -51,6 +51,12 @@ class MessageResponse(BaseModel, frozen=True):
     message: str
 
 
+class RecordIdeaResponse(MessageResponse, frozen=True):
+    """Confirmation and stable ID for a recorded idea."""
+
+    id: str
+
+
 class MoveNoteResponse(MessageResponse, frozen=True):
     """Response confirming a note move."""
 

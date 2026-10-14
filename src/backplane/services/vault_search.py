@@ -10,6 +10,8 @@ from loguru import logger
 from pydantic import BaseModel, computed_field
 from rapidfuzz import fuzz
 
+from backplane.services.ideas import IDEA_NOTES_DIR
+from backplane.services.obsidian import ObsidianService
 from backplane.utils import VAULT_PATHS, AsyncPath, build_obsidian_link, safe_slug
 from backplane.utils.enums import VaultEntityKind
 from backplane.utils.helpers.files import resolve_under_root
@@ -19,10 +21,18 @@ from backplane.utils.settings import SETTINGS
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
-VaultSearchKind = Literal["domain", "person", "project", "resource", "task", "daily_note"]
+VaultSearchKind = Literal[
+    "domain",
+    "person",
+    "project",
+    "resource",
+    "task",
+    "daily_note",
+    "idea",
+]
 
 _ALL_KINDS: Final[frozenset[VaultSearchKind]] = frozenset(
-    {"domain", "person", "project", "resource", "task", "daily_note"},
+    {"domain", "person", "project", "resource", "task", "daily_note", "idea"},
 )
 
 _EXCLUDED_BOARD_NAMES: Final = frozenset(
@@ -70,6 +80,8 @@ def _resolve_kinds(kinds: list[VaultSearchKind] | None) -> frozenset[VaultSearch
 
 
 def _directory_for_kind(kind: VaultSearchKind) -> AsyncPath:
+    if kind == "idea":
+        return IDEA_NOTES_DIR
     if kind == "task":
         return VAULT_PATHS.task_notes_dir
     if kind == "daily_note":
@@ -161,6 +173,12 @@ async def _iter_searchable_notes(
     kinds: frozenset[VaultSearchKind],
 ) -> AsyncIterator[tuple[VaultSearchKind, AsyncPath, str, str]]:
     """Yield searchable notes as (kind, vault_rel_path, title, raw_text)."""
+    if "idea" in kinds:
+        inbox_path = await resolve_under_root(ObsidianService.IDEA_INBOX_PATH)
+        if await inbox_path.is_file():
+            text = await inbox_path.read_text(encoding="utf-8")
+            yield "idea", ObsidianService.IDEA_INBOX_PATH, "Ideas (legacy groups)", text
+
     for kind in sorted(kinds):
         directory = await resolve_under_root(_directory_for_kind(kind))
         if not await directory.is_dir():

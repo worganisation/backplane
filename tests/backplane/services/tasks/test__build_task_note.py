@@ -79,6 +79,7 @@ def test__task_frontmatter_defaults_fixed_task_fields() -> None:
         "created": "2026-05-25T21:30:00",
         "updated": "2026-05-25T21:30:00",
         "source_capture": None,
+        "source_capture_link": None,
         "domains": [],
         "resources": [],
         "projects": [],
