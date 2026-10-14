@@ -6,6 +6,7 @@ import difflib
 import io
 import pathlib
 import re
+from contextlib import AsyncExitStack
 from dataclasses import dataclass
 from functools import cache, lru_cache
 from typing import TYPE_CHECKING, Annotated, ClassVar, Self, cast
@@ -17,7 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, computed_field
 
 from .async_path import AsyncPath
 from .exceptions import SectionNotFoundError, UserError
-from .helpers.files import atomic_write_text
+from .helpers.files import atomic_write_text, vault_write_lock
 from .settings import SETTINGS
 from .yaml import YAML_LOADER, FrontmatterValue
 
@@ -258,6 +259,7 @@ class MarkdownDocument(BaseModel):
 
     model_config: ClassVar[ConfigDict] = ConfigDict(arbitrary_types_allowed=True)
 
+    _write_stack: AsyncExitStack = PrivateAttr(default_factory=AsyncExitStack)
     _frontmatter: dict[str, FrontmatterValue] = PrivateAttr(default_factory=dict)
     _body: list[MarkdownSection] = PrivateAttr(default_factory=list)
     _loaded_rendered: Annotated[str, PrivateAttr()] = ""
@@ -325,6 +327,21 @@ class MarkdownDocument(BaseModel):
 
     async def __aenter__(self) -> Self:
         """Load the document and return it for editing.
+
+        Returns:
+            The loaded document instance.
+        """
+        try:
+            if not self.read_only or self.create_if_not_exists:
+                _ = await self._write_stack.enter_async_context(vault_write_lock())
+
+            return await self._load()
+        except BaseException:
+            await self._write_stack.aclose()
+            raise
+
+    async def _load(self) -> Self:
+        """Read and parse the document while holding the writer lock when needed.
 
         Returns:
             The loaded document instance.
@@ -399,14 +416,20 @@ class MarkdownDocument(BaseModel):
             exc_type: Exception type from the context manager, if any.
             _exc_value: Exception value from the context manager, if any.
             _traceback: Exception traceback from the context manager, if any.
+        """
+        try:
+            if exc_type is None and not self.read_only:
+                await self._save()
+        finally:
+            await self._write_stack.aclose()
+
+    async def _save(self) -> None:
+        """Validate external changes and flush edits while holding the writer lock.
 
         Raises:
             ValueError: If the file was modified externally since it was loaded and
                 ``detect_external_modification`` is enabled.
         """
-        if exc_type is not None or self.read_only:
-            return
-
         if self.detect_external_modification:
             current_text = await self._async_file_path.read_text(encoding="utf-8")
             current_normalized = _render_text(current_text)
