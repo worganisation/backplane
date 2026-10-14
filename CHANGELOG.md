@@ -2,6 +2,45 @@
 
 <!-- version list -->
 
+## v0.8.2 (2026-10-14)
+
+### Bug Fixes
+
+- Discover conventional daily note template
+  ([#114](https://github.com/worganisation/backplane/pull/114),
+  [`f12d18b`](https://github.com/worganisation/backplane/commit/f12d18bcbf578a881e016940ec1dc457a3058df9))
+
+- Preserve and retrieve distinct idea captures
+  ([#115](https://github.com/worganisation/backplane/pull/115),
+  [`23fbfd3`](https://github.com/worganisation/backplane/commit/23fbfd3d6c416a2bfa4df0d47d7de9a648c556a1))
+
+- Preserve expanded task requests when linking ideas
+  ([#112](https://github.com/worganisation/backplane/pull/112),
+  [`7af2c60`](https://github.com/worganisation/backplane/commit/7af2c60a46c9c8e655facfbbfad7fdd712e62c06))
+
+- Serialize concurrent vault captures and board writes
+  ([#113](https://github.com/worganisation/backplane/pull/113),
+  [`35ea8f1`](https://github.com/worganisation/backplane/commit/35ea8f198c625eb75cb092b6442d9147156e7bdd))
+
+- **docs**: Avoid release version churn in generated catalog
+  ([#118](https://github.com/worganisation/backplane/pull/118),
+  [`96d0b3a`](https://github.com/worganisation/backplane/commit/96d0b3a8d20c40920805874462423d632d03177f))
+
+- **markdown**: Preserve note preambles and headingless content
+  ([#111](https://github.com/worganisation/backplane/pull/111),
+  [`bafe97f`](https://github.com/worganisation/backplane/commit/bafe97fab7af28240fbbc741b9bd4e6dbeb047f2))
+
+- **tasks**: Preserve saved captures and resume idempotent retries
+  ([#116](https://github.com/worganisation/backplane/pull/116),
+  [`ec02269`](https://github.com/worganisation/backplane/commit/ec02269b5a4a7cb045b8b955377aecadf055351f))
+
+### Chores
+
+- **deps**: Bump pyjwt from 2.13.0 to 2.15.0 in the uv-security-dependencies group across 1
+  directory ([#110](https://github.com/worganisation/backplane/pull/110),
+  [`0d69743`](https://github.com/worganisation/backplane/commit/0d6974389c9885fe8171d5742c5ab1a03005f1ae))
+
+
 ## v0.8.1 (2026-09-28)
 
 ### Bug Fixes
