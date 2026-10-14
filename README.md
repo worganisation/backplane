@@ -142,7 +142,7 @@ that remains an MCP-only route when configured.
 
 This section is generated automatically from the registered MCP surface. Run `prek run update-readme-mcp-catalog` to refresh it after changing tools or resources.
 
-**Server:** `Backplane` v0.8.0
+**Server:** `Backplane` v0.8.1
 
 ### Server instructions
 
@@ -152,6 +152,8 @@ Tool routing:
 - Use `add_to_daily_note` when the user wants to capture something in today's note or a daily-note section.
 - Use `create_task` for actionable things the user needs, wants, or intends to do.
 - Use `record_idea` for loose, speculative, non-committal ideas.
+- Use `list_ideas` to browse captures and `get_idea` to read a stable capture ID.
+  Legacy minute groups can contain several ideas.
 - Use `get_daily_note` when the user asks what is in today's note or a specific daily note,
   or before `add_to_daily_note` when the available sections are unknown.
 - Use `create_vault_entity` to create a Domain, Project, Resource, or Person note.
@@ -266,7 +268,7 @@ Prefer this over `search_vault_notes` for name-like queries. Prefer this over
 
 | Parameter | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `kinds` | `domain` \| `person` \| `project` \| `resource` \| `task` \| `daily_note`[]? | no | `null` | Note kinds to search. Omit to search all kinds. |
+| `kinds` | `domain` \| `person` \| `project` \| `resource` \| `task` \| `daily_note` \| `idea`[]? | no | `null` | Note kinds to search. Omit to search all kinds. |
 | `limit` | `integer` | no | `20` | Maximum number of hits to return. |
 | `query` | `string` | yes | — | Approximate note title or filename to match. |
 
@@ -280,6 +282,17 @@ or needs daily-note context for a follow-up.
 | Parameter | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `date` | `date` (YYYY-MM-DD)? | no | `null` | Daily note date in YYYY-MM-DD. Defaults to today's local date. |
+
+#### `get_idea`
+
+Read the original capture text by stable idea ID or legacy date/minute ID.
+
+Returns:
+    The capture record and original text.
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `capture_id` | `string` | yes | — |  |
 
 #### `get_vault_entity`
 
@@ -315,6 +328,21 @@ Use after `create_task` returned candidate captures and the user confirms which 
 | --- | --- | --- | --- | --- |
 | `capture_id` | `string` | yes | — | Inbox capture ID, e.g. `2026-05-25T21:15`. |
 | `task_slug` | `string` | yes | — | Task title, filename stem, or internal slug from the task creation response. |
+
+#### `list_ideas`
+
+List a bounded page of idea captures, newest first.
+
+Legacy date/minute entries are marked `legacy_group` because they can contain several ideas.
+Use `get_idea` with a returned ID to retrieve the complete capture.
+
+Returns:
+    A page of capture records.
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `limit` | `integer` | no | `20` |  |
+| `offset` | `integer` | no | `0` |  |
 
 #### `list_vault_entities`
 
@@ -383,11 +411,11 @@ example "MQTT broker", "rain alert", or "backup verification".
 
 Prefer this over `find_vault_notes` when the query is topical rather than a note name.
 After finding a hit, read entity notes with `get_vault_entity`, daily notes with
-`get_daily_note`, or follow `canonical_link` in responses.
+`get_daily_note`, ideas with `list_ideas` and `get_idea`, or follow `canonical_link` in responses.
 
 | Parameter | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `kinds` | `domain` \| `person` \| `project` \| `resource` \| `task` \| `daily_note`[]? | no | `null` | Note kinds to search. Omit to search all kinds. |
+| `kinds` | `domain` \| `person` \| `project` \| `resource` \| `task` \| `daily_note` \| `idea`[]? | no | `null` | Note kinds to search. Omit to search all kinds. |
 | `limit` | `integer` | no | `20` | Maximum number of hits to return. |
 | `query` | `string` | yes | — | Topic or phrase to match in note content. |
 

@@ -3,21 +3,22 @@
 from __future__ import annotations
 
 import datetime as dt  # ruff:ignore[typing-only-standard-library-import]  # FastAPI resolves this annotation at runtime
+from typing import Annotated
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Query, status
 
 from backplane.api.schemas import (
     DailyNoteResponse,
     DailyNoteUpdateRequest,
     IdeaRequest,
-    MessageResponse,
+    RecordIdeaResponse,
     SectionResponse,
 )
 from backplane.operations.daily_notes import (
     read_daily_note,
-    record_idea,
     update_daily_note_section,
 )
+from backplane.services.ideas import IdeaCapture, IdeaService
 from backplane.utils import today
 
 router = APIRouter(tags=["daily notes"])
@@ -57,14 +58,38 @@ async def update_daily_note(request: DailyNoteUpdateRequest) -> SectionResponse:
 
 @router.post(
     "/obsidian/ideas",
-    response_model=MessageResponse,
+    response_model=RecordIdeaResponse,
     status_code=status.HTTP_201_CREATED,
     tags=["ideas"],
 )
-async def create_idea(request: IdeaRequest) -> MessageResponse:
+async def create_idea(request: IdeaRequest) -> RecordIdeaResponse:
     """Record a loose idea in the idea inbox.
 
     Returns:
         Idea-capture confirmation response.
     """
-    return MessageResponse(message=await record_idea(request.idea))
+    capture = await IdeaService.record(request.idea)
+    return RecordIdeaResponse(message="Idea recorded successfully.", id=capture.id)
+
+
+@router.get("/obsidian/ideas", tags=["ideas"])
+async def list_ideas(
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> list[IdeaCapture]:
+    """List a bounded page of idea captures, newest first.
+
+    Returns:
+        A page of capture records.
+    """
+    return await IdeaService.list_ideas(limit=limit, offset=offset)
+
+
+@router.get("/obsidian/ideas/{capture_id}", tags=["ideas"])
+async def get_idea(capture_id: str) -> IdeaCapture:
+    """Read an individual idea or legacy minute group by stable ID.
+
+    Returns:
+        The capture record and original text.
+    """
+    return await IdeaService.get_idea(capture_id)

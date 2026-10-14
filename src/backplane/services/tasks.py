@@ -16,6 +16,7 @@ from pydantic_ai import Agent, AgentRunResult
 from rapidfuzz import fuzz
 
 from backplane.services import ObsidianService
+from backplane.services.ideas import Capture, IdeaService
 from backplane.services.vault_entities import VaultEntityService
 from backplane.utils import (
     SETTINGS,
@@ -34,7 +35,6 @@ from backplane.utils import (
     obsidian_link_target_from_path,
     resolve_under_root,
     safe_slug,
-    today,
 )
 from backplane.utils.kanban import append_board_card
 from backplane.utils.markdown import note_title_from_markdown
@@ -46,17 +46,6 @@ _MIN_AUTO_GAP: Final = 10.0
 _LOG_TEXT_MAX_LEN: Final = 80
 _MATCH_TOP_CANDIDATES: Final = 3
 _STUB_NOTE_TYPES: Final = frozenset({"domain", "person", "project", "resource"})
-
-
-@dataclass(frozen=True, slots=True)
-class Capture:
-    """A single timestamped entry from the idea inbox."""
-
-    id: str
-    date: str
-    time: str
-    text: str
-    path: AsyncPath
 
 
 @dataclass(frozen=True, slots=True)
@@ -185,6 +174,10 @@ class TaskFrontmatter(BaseModel, frozen=True):
                 "or null when created from free-text description."
             ),
         ),
+    ] = None
+    source_capture_link: Annotated[
+        str | None,
+        Field(description="Native Obsidian link to an individual idea note."),
     ] = None
     domains: Annotated[
         list[str],
@@ -348,64 +341,6 @@ def _log_metadata_agent_run(result: AgentRunResult[TaskMetadata]) -> None:
     )
 
 
-def _parse_inbox(doc: MarkdownDocument, days: int | None = _INBOX_DAYS) -> list[Capture]:
-    """Parse captures from the inbox document.
-
-    Args:
-        doc: Loaded inbox MarkdownDocument.
-        days: How many calendar days back to search, or None for all captures.
-
-    Returns:
-        List of captures within the lookback window, in document order.
-    """
-    cutoff = today() - dt.timedelta(days=days) if days is not None else None
-    captures: list[Capture] = []
-
-    for date_section in doc.body:
-        try:
-            section_date = dt.date.fromisoformat(date_section.heading)
-        except ValueError:
-            continue
-
-        if cutoff is not None and section_date < cutoff:
-            continue
-
-        for time_section in date_section.sections:
-            capture_text = _clean_capture_text(time_section.content)
-            if not capture_text:
-                continue
-
-            captures.append(
-                Capture(
-                    id=f"{date_section.heading}T{time_section.heading}",
-                    date=date_section.heading,
-                    time=time_section.heading,
-                    text=capture_text,
-                    path=ObsidianService.IDEA_INBOX_PATH,
-                ),
-            )
-
-    return captures
-
-
-def _is_task_backlink_line(line: str) -> bool:
-    """Return whether a line is an appended task back-link annotation."""
-    normalized = line.strip().replace("\\", "")
-    return normalized.startswith("↗ [[") and normalized.endswith("]]")
-
-
-def _clean_capture_text(text: str | None) -> str:
-    """Return capture text without generated task back-link annotations."""
-    if text is None:
-        return ""
-
-    return "\n".join(
-        line.rstrip()
-        for line in text.strip().splitlines()
-        if not _is_task_backlink_line(line)
-    ).strip()
-
-
 def _fuzzy_score(query: str, text: str) -> float:
     """Return a conservative fuzzy score between query and text."""
     return max(fuzz.token_set_ratio(query, text), fuzz.partial_ratio(query, text))
@@ -501,14 +436,9 @@ async def _load_recent_captures() -> list[Capture]:
     """Parse captures from the inbox within a default lookback window.
 
     Returns:
-        List of parsed captures; an empty list if the inbox file is absent.
+        List of recent captures; an empty list if no captures exist.
     """
-    try:
-        async with ObsidianService().idea_inbox(read_only=True) as inbox:
-            captures = _parse_inbox(inbox)
-    except FileNotFoundError:
-        logger.error("Idea inbox not found; skipping capture matching")
-        return []
+    captures = await IdeaService.load_captures(days=_INBOX_DAYS)
 
     logger.info(
         "Parsed {} inbox captures (lookback_days={})",
@@ -522,14 +452,9 @@ async def _load_all_captures() -> list[Capture]:
     """Load all inbox captures for exact-ID linking.
 
     Returns:
-        All inbox captures, or an empty list when the inbox is absent.
+        All individual and grouped captures, or an empty list if none exist.
     """
-    try:
-        async with ObsidianService().idea_inbox(read_only=True) as inbox:
-            captures = _parse_inbox(inbox, days=None)
-    except FileNotFoundError:
-        logger.error("Idea inbox not found; skipping capture linking")
-        return []
+    captures = await IdeaService.load_captures()
 
     logger.info("Parsed {} inbox captures for exact lookup", len(captures))
     return captures
@@ -777,6 +702,11 @@ def _build_task_note(
         created=timestamp,
         updated=timestamp,
         source_capture=capture.id if capture else None,
+        source_capture_link=(
+            build_obsidian_link(capture.path)
+            if capture is not None and capture.kind == "idea"
+            else None
+        ),
         domains=_entity_wikilinks(enums.VaultEntityKind.DOMAIN, metadata.domains),
         resources=_entity_wikilinks(enums.VaultEntityKind.RESOURCE, metadata.resources),
         projects=_entity_wikilinks(enums.VaultEntityKind.PROJECT, metadata.projects),
@@ -889,6 +819,9 @@ async def _annotate_capture(match: Capture, task_link: str) -> None:
         match: The inbox capture to annotate.
         task_link: Canonical wikilink to the task note.
     """
+    if match.kind == "idea":
+        return
+
     try:
         async with ObsidianService().idea_inbox() as inbox:
             section = inbox.get_section((match.date, match.time))
@@ -1214,6 +1147,9 @@ class TaskService:
         try:
             async with MarkdownDocument(vault_path=task_path) as task:
                 task.frontmatter["source_capture"] = capture.id
+                task.frontmatter["source_capture_link"] = (
+                    build_obsidian_link(capture.path) if capture.kind == "idea" else None
+                )
         except FileNotFoundError as error:
             logger.warning(
                 "Task {} not found while linking capture {}",
