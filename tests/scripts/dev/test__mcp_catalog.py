@@ -55,7 +55,6 @@ def test__render_mcp_catalog_markdown__includes_tools_resources_and_templates() 
     """Rendered markdown documents tools, resources, and templates."""
     catalog = McpCatalog(
         server_name="Backplane",
-        server_version="0.0.0",
         instructions="Keep outputs concise.",
         tools=(
             McpToolDoc(
@@ -120,7 +119,6 @@ def test__update_readme_catalog__replaces_existing_marked_section(tmp_path: Path
     )
     catalog = McpCatalog(
         server_name="Backplane",
-        server_version="1.2.3",
         instructions="New instructions.",
         tools=(),
         resources=(),
@@ -140,7 +138,6 @@ def test__update_readme_catalog__is_noop_when_content_unchanged(tmp_path: Path) 
     """README updates return false when the rendered section is unchanged."""
     catalog = McpCatalog(
         server_name="Backplane",
-        server_version="1.2.3",
         instructions="Same instructions.",
         tools=(),
         resources=(),
@@ -257,7 +254,6 @@ def test__render_mcp_catalog_markdown__separates_multiple_entries() -> None:
     """Rendered markdown adds spacing between multiple tools and resources."""
     catalog = McpCatalog(
         server_name="Backplane",
-        server_version="0.0.0",
         instructions="Keep outputs concise.",
         tools=(
             McpToolDoc(name="first_tool", description="First.", parameters=()),
@@ -317,7 +313,6 @@ def test__update_readme_catalog__inserts_at_anchor_when_markers_missing(
     )
     catalog = McpCatalog(
         server_name="Backplane",
-        server_version="1.2.3",
         instructions="New instructions.",
         tools=(),
         resources=(),
@@ -340,7 +335,6 @@ def test__update_readme_catalog__raises_when_anchor_missing(tmp_path: Path) -> N
     readme.write_text("# Example\n\nNo catalog markers here.\n", encoding="utf-8")
     catalog = McpCatalog(
         server_name="Backplane",
-        server_version="1.2.3",
         instructions="Instructions.",
         tools=(),
         resources=(),
