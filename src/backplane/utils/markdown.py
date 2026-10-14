@@ -255,12 +255,13 @@ class MarkdownSection(BaseModel):
 
 
 class MarkdownDocument(BaseModel):
-    """A markdown document split into frontmatter and heading sections."""
+    """A markdown document split into frontmatter, preamble, and heading sections."""
 
     model_config: ClassVar[ConfigDict] = ConfigDict(arbitrary_types_allowed=True)
 
     _write_stack: AsyncExitStack = PrivateAttr(default_factory=AsyncExitStack)
     _frontmatter: dict[str, FrontmatterValue] = PrivateAttr(default_factory=dict)
+    _preamble: Annotated[str | None, PrivateAttr()] = None
     _body: list[MarkdownSection] = PrivateAttr(default_factory=list)
     _loaded_rendered: Annotated[str, PrivateAttr()] = ""
 
@@ -362,7 +363,14 @@ class MarkdownDocument(BaseModel):
         self._frontmatter, body_text = _parse_frontmatter(text)
         lines = body_text.splitlines()
 
-        if not (headings := _extract_headings(_markdown_it().parse(body_text), lines)):
+        headings = _extract_headings(_markdown_it().parse(body_text), lines)
+        self._preamble = _section_content(
+            lines,
+            start_line=0,
+            end_line=headings[0].line_no if headings else len(lines),
+        )
+
+        if not headings:
             self._body = []
             return self
 
@@ -527,8 +535,11 @@ class MarkdownDocument(BaseModel):
         Returns:
             The full markdown document including frontmatter (if any) and body.
         """
+        parts = [self._preamble] if self._preamble is not None else []
+        parts.extend(section.render() for section in self.body)
+
         body = mdformat.text(  # pyright: ignore[reportUnknownMemberType]
-            "\n\n".join(section.render() for section in self.body),
+            "\n\n".join(parts),
             extensions={"gfm", "wikilink"},
         ).lstrip()
 
