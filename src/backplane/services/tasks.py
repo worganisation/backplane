@@ -686,13 +686,16 @@ async def _extract_metadata(
     description: str,
     title: str | None,
     priority: enums.Priority | None,
+    *,
+    fallback_description: str | None = None,
 ) -> TaskMetadata:
     """Extract structured metadata fields from a task description, with optional title and priority overrides.
 
     Args:
-        description: Raw task description text.
+        description: Task description and any labelled capture context for the model.
         title: Pre-supplied title to use unchanged; if provided, skips title extraction.
         priority: Pre-supplied priority to use unchanged; if provided, skips priority extraction.
+        fallback_description: Raw current request for fallback titles without model context.
 
     Returns:
         TaskMetadata with extracted fields, or fallback defaults if extraction fails.
@@ -729,7 +732,7 @@ async def _extract_metadata(
     except Exception:  # ruff:ignore[blind-except]
         logger.exception("Metadata extraction failed; using defaults")
         fallback = TaskMetadata(
-            title=title or description[:60],
+            title=title or (fallback_description or description)[:60],
             domains=[],
             resources=[],
             projects=[],
@@ -780,7 +783,7 @@ def _build_task_note(
         now: Creation timestamp (local time).
         metadata: Extracted task metadata.
         capture: Linked inbox entry, or None if the task was created directly.
-        description: Task description (used when no inbox entry is linked).
+        description: Current task description, authoritative even with a linked capture.
         due: Optional due date string (YYYY-MM-DD).
 
     Returns:
@@ -801,15 +804,28 @@ def _build_task_note(
         due=due,
     )
 
-    description_text = (capture.text if capture else description).strip()
+    description_text = description.strip()
     blockquote = "\n".join(
         f"> {line}" if line.strip() else ">"
         for line in (description_text.splitlines() or [""])
     )
 
+    source_capture = ""
+    if capture is not None:
+        capture_quote = "\n".join(
+            f"> {line}" if line.strip() else ">"
+            for line in capture.text.strip().splitlines()
+        )
+        source_capture = (
+            "## Source Capture\n\n"
+            f"{build_obsidian_link(capture.path)} ({capture.id})\n\n"
+            f"{capture_quote}\n\n"
+        )
+
     body = (
         f"# {title}\n\n"
         f"## Description\n\n{blockquote}\n\n"
+        f"{source_capture}"
         f"## Next Action\n\n{metadata.next_action.strip()}\n\n"
         "## Notes\n\n"
     )
@@ -952,19 +968,23 @@ async def _select_task_capture(
 
 
 def _metadata_source(description: str, capture: Capture | None) -> str:
-    """Selects the text source for metadata extraction and logs the source choice.
+    """Keep the current request authoritative with linked capture background.
 
     Returns:
-        The selected text (from capture if available, otherwise from description).
+        Current task description with any separately labelled capture context.
     """
     if capture is not None:
         logger.info(
-            "Task metadata source: capture {} (description_len={} capture_len={})",
+            "Task metadata source: description with capture {} background (description_len={} capture_len={})",
             capture.id,
             len(description),
             len(capture.text),
         )
-        return capture.text
+        return (
+            f"Current task request (authoritative):\n{description}\n\n"
+            "Linked inbox capture (background context; the current request takes "
+            f"precedence if details differ):\n{capture.text}"
+        )
 
     logger.info(
         "Task metadata source: description only (len={})",
@@ -1308,6 +1328,7 @@ class TaskService:
             _metadata_source(description, capture_selection.matched),
             title,
             priority,
+            fallback_description=description,
         )
         intake = _TaskIntake(
             key_digest=key_digest,
