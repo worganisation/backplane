@@ -121,3 +121,7 @@ Merges and branch pushes do not create releases. Deployment workflows, where
 present, consume published releases or release tags. Do not introduce automatic
 release creation or branch-push deployment; environment approval gates are not
 part of the release authorization flow.
+
+## Production configuration
+
+Public application settings belong in `deploy/runtime.env` and ship through release CI. `just deploy` installs systemd drop-ins for both MCP services before restarting them. The runtime file overrides matching infrastructure environment values; keep it free of credentials. Infrastructure owns provisioning, secrets, the vault path, and OIDC/public endpoint registration settings. Do not add application preferences to the infrastructure environment allowlist.
