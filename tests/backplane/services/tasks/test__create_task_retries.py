@@ -182,7 +182,10 @@ async def test__metadata_extraction_does_not_hold_vault_lock(
         _description: str,
         _title: str | None,
         _priority: object,
+        *,
+        fallback_description: str | None = None,
     ) -> TaskMetadata:
+        _ = fallback_description
         extracting.set()
         await release.wait()
         return TaskMetadata(
