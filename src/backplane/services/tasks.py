@@ -671,13 +671,16 @@ async def _extract_metadata(
     description: str,
     title: str | None,
     priority: enums.Priority | None,
+    *,
+    fallback_description: str | None = None,
 ) -> TaskMetadata:
     """Extract structured metadata fields from a task description, with optional title and priority overrides.
 
     Args:
-        description: Raw task description text.
+        description: Task description and any labelled capture context for the model.
         title: Pre-supplied title to use unchanged; if provided, skips title extraction.
         priority: Pre-supplied priority to use unchanged; if provided, skips priority extraction.
+        fallback_description: Raw current request for fallback titles without model context.
 
     Returns:
         TaskMetadata with extracted fields, or fallback defaults if extraction fails.
@@ -714,7 +717,7 @@ async def _extract_metadata(
     except Exception:  # ruff:ignore[blind-except]
         logger.exception("Metadata extraction failed; using defaults")
         fallback = TaskMetadata(
-            title=title or description[:60],
+            title=title or (fallback_description or description)[:60],
             domains=[],
             resources=[],
             projects=[],
@@ -1124,6 +1127,7 @@ class TaskService:
             _metadata_source(description, capture_selection.matched),
             title,
             priority,
+            fallback_description=description,
         )
         filename_stem, slug = await _unique_task_filename(metadata.title)
 

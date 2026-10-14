@@ -68,6 +68,7 @@ async def test__create_task_uses_explicit_capture_link(
         f"precedence if details differ):\n{capture_text}",
         None,
         None,
+        fallback_description="backup logs",
     )
     mock_find_match.assert_not_called()
 
