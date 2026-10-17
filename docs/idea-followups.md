@@ -14,6 +14,8 @@ The `/delivered` callback records notification submission, with `receipt_confirm
 
 ## Assist and saved elaboration
 
+The GPT conversation agent uses `deploy/assist-prompt.jinja` followed by `deploy/idea-followup-prompt.jinja` as its repository-managed instructions. Apply their combined text through the supported HA conversation subentry configuration API; do not edit `.storage`. The follow-up fragment takes precedence for an existing idea discussion.
+
 Say “Let's develop the idea from my notification.” The agent calls `get_idea_followup` before discussing it. The response contains the exact prompt ID, stable idea ID, original wording and prior elaborations. Implicit context expires after 12 hours and excludes snoozed or dismissed prompts. Explicit IDs can retrieve older conversations; an absent current context requires clarification rather than selecting a different idea.
 
 `save_idea_elaboration` stores the user's wording as an immutable context response and writes one Markdown note in `Inbox/Idea development/<capture_id>/<response_id>.md`, linked to the original idea. Identical text on the same prompt is idempotent. If the vault write fails after the database save, retrying repairs the export without duplicating the response. The tool confirms success only when the export succeeds.
