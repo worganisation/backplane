@@ -16,6 +16,7 @@ from backplane.operations.daily_notes import (
 from backplane.operations.daily_notes import (
     record_idea as record_idea_operation,
 )
+from backplane.services.ideas import IdeaCapture, IdeaService
 from backplane.services.obsidian import ObsidianService
 from backplane.utils import AsyncPath, today
 
@@ -26,8 +27,14 @@ _ADD_DESCRIPTION = """Add content to a section of the user's Obsidian daily note
 
 Use when the user wants to capture something "today", "in my daily note", or into a daily-note section.
 
-When the target section is unknown or ambiguous, call `get_daily_note` first to inspect the note's
-headings. If a section lookup fails, the error includes available sections at that level.
+For personal diary entries without a named section, use heading_path=["Diary"],
+mode="append", and create_section_if_not_exists=true. Do not read the note first for this default.
+Preserve the user's wording and any stated event time; never invent an event time.
+Use the requested date for past entries, or today when no date is specified.
+
+For other captures where the target section is unknown or ambiguous, call `get_daily_note`
+first to inspect the note's headings. If a section lookup fails, the error includes
+available sections at that level.
 
 If the user explicitly asks for another section, create it with `create_section_if_not_exists=true`.
 If a section is missing and the tool returns available sections, retry with the closest
@@ -167,10 +174,34 @@ async def record_idea(
     """Record a new idea in the Obsidian idea inbox.
 
     Returns:
-        The string "Idea recorded successfully."
+        Confirmation including the stable capture ID.
     """
     logger.info("record_idea")
     return await record_idea_operation(idea)
+
+
+async def list_ideas(
+    limit: Annotated[int, Field(ge=1, le=100)] = 20,
+    offset: Annotated[int, Field(ge=0)] = 0,
+) -> list[IdeaCapture]:
+    """List a bounded page of idea captures, newest first.
+
+    Legacy date/minute entries are marked `legacy_group` because they can contain several ideas.
+    Use `get_idea` with a returned ID to retrieve the complete capture.
+
+    Returns:
+        A page of capture records.
+    """
+    return await IdeaService.list_ideas(limit=limit, offset=offset)
+
+
+async def get_idea(capture_id: str) -> IdeaCapture:
+    """Read the original capture text by stable idea ID or legacy date/minute ID.
+
+    Returns:
+        The capture record and original text.
+    """
+    return await IdeaService.get_idea(capture_id)
 
 
 async def move_note(
@@ -235,6 +266,8 @@ def register_obsidian_tools(mcp: FastMCP[None], *, require_oauth: bool = False) 
     _ = mcp.tool(description=_ADD_DESCRIPTION, **auth_kwargs)(add_to_daily_note)
     _ = mcp.tool(description=_GET_DAILY_NOTE_DESCRIPTION, **auth_kwargs)(get_daily_note)
     _ = mcp.tool(description=_RECORD_IDEA_DESCRIPTION, **auth_kwargs)(record_idea)
+    _ = mcp.tool(**auth_kwargs)(list_ideas)
+    _ = mcp.tool(**auth_kwargs)(get_idea)
     _ = mcp.tool(description=_MOVE_NOTE_DESCRIPTION, **auth_kwargs)(move_note)
     _ = mcp.resource(
         uri="obsidian://daily-note/today",

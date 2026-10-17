@@ -8,6 +8,8 @@ AI-facing gateway for local services and smart home orchestration
 [![Pre-Commit Hooks](https://img.shields.io/github/actions/workflow/status/worgarside/backplane/pre-commit-hooks.yml?branch=main&label=pre-commit)](https://github.com/worgarside/backplane/actions/workflows/pre-commit-hooks.yml)
 [![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/worgarside/backplane?utm_source=oss&utm_medium=github&utm_campaign=worgarside%2Fbackplane&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)](https://coderabbit.ai)
 
+See [Idea follow-ups](docs/idea-followups.md) for contextual notification prompts and Assist elaboration.
+
 ## Installation
 
 Backplane is designed to run as a persistent service on a Linux host (tested on Debian 13 in a Proxmox LXC).
@@ -191,16 +193,21 @@ to the next eligible time. Correlated cross-source observations are deduplicated
 
 This section is generated automatically from the registered MCP surface. Run `prek run update-readme-mcp-catalog` to refresh it after changing tools or resources.
 
-**Server:** `Backplane` v0.7.0
+**Server:** `Backplane`
 
 ### Server instructions
 
 Backplane manages the user's Obsidian vault.
 
 Tool routing:
+- When the user refers to an idea notification, call `get_idea_followup` to retrieve
+  its exact idea and prompt IDs. Save elaboration with `save_idea_elaboration`;
+  do not record it as a new idea or create tasks/projects without explicit commitment.
 - Use `add_to_daily_note` when the user wants to capture something in today's note or a daily-note section.
 - Use `create_task` for actionable things the user needs, wants, or intends to do.
 - Use `record_idea` for loose, speculative, non-committal ideas.
+- Use `list_ideas` to browse captures and `get_idea` to read a stable capture ID.
+  Legacy minute groups can contain several ideas.
 - Use `get_daily_note` when the user asks what is in today's note or a specific daily note,
   or before `add_to_daily_note` when the available sections are unknown.
 - Use `create_vault_entity` to create a Domain, Project, Resource, or Person note.
@@ -240,8 +247,14 @@ Add content to a section of the user's Obsidian daily note.
 
 Use when the user wants to capture something "today", "in my daily note", or into a daily-note section.
 
-When the target section is unknown or ambiguous, call `get_daily_note` first to inspect the note's
-headings. If a section lookup fails, the error includes available sections at that level.
+For personal diary entries without a named section, use heading_path=["Diary"],
+mode="append", and create_section_if_not_exists=true. Do not read the note first for this default.
+Preserve the user's wording and any stated event time; never invent an event time.
+Use the requested date for past entries, or today when no date is specified.
+
+For other captures where the target section is unknown or ambiguous, call `get_daily_note`
+first to inspect the note's headings. If a section lookup fails, the error includes
+available sections at that level.
 
 If the user explicitly asks for another section, create it with `create_section_if_not_exists=true`.
 If a section is missing and the tool returns available sections, retry with the closest
@@ -274,12 +287,17 @@ Only set:
 - `priority` when urgency/importance is explicit.
 - `title` when the user gives a clear title.
 
+Supply a stable `idempotency_key` for each operation and reuse it with identical fields on retries.
+
+A saved task can return warnings for incomplete links; fix their cause and retry with the same key.
+
 If timing is implied but not explicit, leave `due=null` and keep the timing words in `description`.
 
 | Parameter | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `description` | `string` | yes | — | Natural-language task description. Include distinctive names, nouns, and context that may help matching and metadata extraction. |
 | `due` | `string`? | no | `null` | Optional due date in YYYY-MM-DD. Only set when explicit. |
+| `idempotency_key` | `string`? | no | `null` | Stable operation key; reuse with identical input on retry. |
 | `link_capture_id` | `string`? | no | `null` | Confirmed inbox capture ID to link. Omit unless the user confirmed the capture. |
 | `priority` | `low` \| `medium` \| `high`? | no | `null` | Optional priority override. Only set when explicit. |
 | `title` | `string`? | no | `null` | Optional title override. Omit unless the user supplied a clear title. |
@@ -353,7 +371,7 @@ Prefer this over `search_vault_notes` for name-like queries. Prefer this over
 
 | Parameter | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `kinds` | `domain` \| `person` \| `project` \| `resource` \| `task` \| `daily_note`[]? | no | `null` | Note kinds to search. Omit to search all kinds. |
+| `kinds` | `domain` \| `person` \| `project` \| `resource` \| `task` \| `daily_note` \| `idea`[]? | no | `null` | Note kinds to search. Omit to search all kinds. |
 | `limit` | `integer` | no | `20` | Maximum number of hits to return. |
 | `query` | `string` | yes | — | Approximate note title or filename to match. |
 
@@ -367,6 +385,32 @@ or needs daily-note context for a follow-up.
 | Parameter | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `date` | `date` (YYYY-MM-DD)? | no | `null` | Daily note date in YYYY-MM-DD. Defaults to today's local date. |
+
+#### `get_idea`
+
+Read the original capture text by stable idea ID or legacy date/minute ID.
+
+Returns:
+    The capture record and original text.
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `capture_id` | `string` | yes | — |  |
+
+#### `get_idea_followup`
+
+Read the idea from the user's follow-up notification before discussing it.
+
+Omit prompt_id for the current notification. If no current context exists,
+ask which idea the user means; never guess or choose a different idea.
+Ask one useful question about the outcome, feasibility or next step.
+
+Returns:
+    Original wording, exact IDs and prior elaborations, or None.
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `prompt_id` | `string`? | no | `null` |  |
 
 #### `get_vault_entity`
 
@@ -402,6 +446,21 @@ Use after `create_task` returned candidate captures and the user confirms which 
 | --- | --- | --- | --- | --- |
 | `capture_id` | `string` | yes | — | Inbox capture ID, e.g. `2026-05-25T21:15`. |
 | `task_slug` | `string` | yes | — | Task title, filename stem, or internal slug from the task creation response. |
+
+#### `list_ideas`
+
+List a bounded page of idea captures, newest first.
+
+Legacy date/minute entries are marked `legacy_group` because they can contain several ideas.
+Use `get_idea` with a returned ID to retrieve the complete capture.
+
+Returns:
+    A page of capture records.
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `limit` | `integer` | no | `20` |  |
+| `offset` | `integer` | no | `0` |  |
 
 #### `list_vault_entities`
 
@@ -495,6 +554,25 @@ Return the prompt and immutable response after an idempotent append.
 | `prompt_id` | `string` | yes | — |  |
 | `request` | `object` | yes | — | Idempotent response captured from a delivered prompt. |
 
+#### `save_idea_elaboration`
+
+Save the user's elaboration against the exact IDs from get_idea_followup.
+
+Preserve the user's wording. This stores development notes, not a commitment.
+Create a project or task only when the user explicitly asks to commit to it.
+For tasks use create_task(link_capture_id=capture_id); projectless tasks are valid.
+For a project, include the original idea wikilink and this development note in
+its Overview using create_vault_entity/update_vault_entity.
+
+Returns:
+    The saved development note's wikilink; confirm only after success.
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `capture_id` | `string` | yes | — |  |
+| `prompt_id` | `string` | yes | — |  |
+| `text` | `string` | yes | — |  |
+
 #### `search_vault_notes`
 
 Search vault note contents for a topic or phrase.
@@ -504,11 +582,11 @@ example "MQTT broker", "rain alert", or "backup verification".
 
 Prefer this over `find_vault_notes` when the query is topical rather than a note name.
 After finding a hit, read entity notes with `get_vault_entity`, daily notes with
-`get_daily_note`, or follow `canonical_link` in responses.
+`get_daily_note`, ideas with `list_ideas` and `get_idea`, or follow `canonical_link` in responses.
 
 | Parameter | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `kinds` | `domain` \| `person` \| `project` \| `resource` \| `task` \| `daily_note`[]? | no | `null` | Note kinds to search. Omit to search all kinds. |
+| `kinds` | `domain` \| `person` \| `project` \| `resource` \| `task` \| `daily_note` \| `idea`[]? | no | `null` | Note kinds to search. Omit to search all kinds. |
 | `limit` | `integer` | no | `20` | Maximum number of hits to return. |
 | `query` | `string` | yes | — | Topic or phrase to match in note content. |
 
@@ -706,3 +784,11 @@ Obsidian may require Business, Enterprise, or Edu.
 the browser but `/token` lacks a `refresh_token`. Add **`offline_access`** on the Authentik
 provider (see above), delete the connector, and reconnect. Confirm the MCP URL has no
 trailing space: `https://backplane-mcp.example.com/mcp`.
+
+See [vault filesystem diagnostics](docs/deployment-filesystems.md) for atomic-write constraints and the LXC deployment layout.
+
+Production application settings live in [`deploy/runtime.env`](deploy/runtime.env). Changes to the model, Ollama endpoint, logging, timezone, Home Assistant integration, and client redirect patterns ship through the normal Backplane release and deployment CI. Both MCP services load this file after the infrastructure-managed `.env`, so its public settings take precedence. Infrastructure supplies credentials, the vault path, and the public/OIDC registration endpoints and client ID. Local development and generic `just setup` installations use their own `.env`.
+
+See [Assist voice capture](docs/voice-capture.md) for agent setup and diary/idea/task routing.
+
+See [manual release procedure](docs/releases.md) for deploy-key authentication and release verification.

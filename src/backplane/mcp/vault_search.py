@@ -33,7 +33,7 @@ example "MQTT broker", "rain alert", or "backup verification".
 
 Prefer this over `find_vault_notes` when the query is topical rather than a note name.
 After finding a hit, read entity notes with `get_vault_entity`, daily notes with
-`get_daily_note`, or follow `canonical_link` in responses."""
+`get_daily_note`, ideas with `list_ideas` and `get_idea`, or follow `canonical_link` in responses."""
 
 
 async def find_vault_notes(

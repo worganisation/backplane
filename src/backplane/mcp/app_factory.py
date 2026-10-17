@@ -9,6 +9,7 @@ from fastmcp.server.lifespan import lifespan
 
 from backplane import __version__
 from backplane.mcp.context_capture import register_context_capture_tools
+from backplane.mcp.idea_followup import register_idea_followup_tools
 from backplane.mcp.instructions import BACKPLANE_MCP_INSTRUCTIONS
 from backplane.mcp.obsidian import register_obsidian_tools
 from backplane.mcp.tasks import register_task_tools
@@ -71,6 +72,7 @@ def build_backplane_mcp(
 
     register_obsidian_tools(mcp, require_oauth=require_oauth)
     register_context_capture_tools(mcp, require_oauth=require_oauth)
+    register_idea_followup_tools(mcp, require_oauth=require_oauth)
     register_task_tools(mcp, require_oauth=require_oauth)
     register_vault_entity_tools(mcp, require_oauth=require_oauth)
     register_vault_search_tools(mcp, require_oauth=require_oauth)

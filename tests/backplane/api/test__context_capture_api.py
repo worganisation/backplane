@@ -5,7 +5,7 @@ from __future__ import annotations
 import datetime as dt
 from typing import TYPE_CHECKING
 
-import httpx
+import httpx2
 from pydantic import SecretStr
 
 from backplane.api.routers.context_capture import get_context_capture_service
@@ -47,8 +47,8 @@ async def test__context_api__requires_dedicated_bearer_token(
 ) -> None:
     """Every context route fails closed without the configured bearer token."""
     api_app.dependency_overrides[get_context_capture_service] = lambda: context_service
-    transport = httpx.ASGITransport(app=api_app)
-    async with httpx.AsyncClient(
+    transport = httpx2.ASGITransport(app=api_app)
+    async with httpx2.AsyncClient(
         transport=transport,
         base_url="http://backplane.test",
     ) as client:
@@ -63,13 +63,13 @@ async def test__context_api__requires_dedicated_bearer_token(
         )
         valid = await client.get("/capture-policies/will", headers=HEADERS)
 
-    assert health.status_code == httpx.codes.OK
-    assert unconfigured.status_code == httpx.codes.SERVICE_UNAVAILABLE
-    assert missing.status_code == httpx.codes.UNAUTHORIZED
-    assert invalid.status_code == httpx.codes.UNAUTHORIZED
+    assert health.status_code == httpx2.codes.OK
+    assert unconfigured.status_code == httpx2.codes.SERVICE_UNAVAILABLE
+    assert missing.status_code == httpx2.codes.UNAUTHORIZED
+    assert invalid.status_code == httpx2.codes.UNAUTHORIZED
     assert AUTH_VALUE not in missing.text
     assert AUTH_VALUE not in invalid.text
-    assert valid.status_code == httpx.codes.OK
+    assert valid.status_code == httpx2.codes.OK
 
 
 async def test__context_api__runs_event_prompt_and_response_flow(
@@ -80,8 +80,8 @@ async def test__context_api__runs_event_prompt_and_response_flow(
     """REST adapters expose the canonical event-to-response lifecycle."""
     api_app.dependency_overrides[get_context_capture_service] = lambda: context_service
     monkeypatch.setattr(SETTINGS, "context_api_token", SecretStr(AUTH_VALUE))
-    transport = httpx.ASGITransport(app=api_app)
-    async with httpx.AsyncClient(
+    transport = httpx2.ASGITransport(app=api_app)
+    async with httpx2.AsyncClient(
         transport=transport,
         base_url="http://backplane.test",
         headers=HEADERS,
@@ -132,9 +132,9 @@ async def test__context_api__runs_event_prompt_and_response_flow(
             params={"user_id": "will", "kinds": "location.changed"},
         )
 
-    assert policy.status_code == httpx.codes.OK
-    assert event.status_code == httpx.codes.OK
-    assert prompt.status_code == httpx.codes.OK
+    assert policy.status_code == httpx2.codes.OK
+    assert event.status_code == httpx2.codes.OK
+    assert prompt.status_code == httpx2.codes.OK
     assert prompt.json()["allowed"] is True
     assert delivered.json()["status"] == "delivered"
     assert response.json()["prompt"]["status"] == "responded"

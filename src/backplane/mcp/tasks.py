@@ -37,6 +37,10 @@ Only set:
 - `priority` when urgency/importance is explicit.
 - `title` when the user gives a clear title.
 
+Supply a stable `idempotency_key` for each operation and reuse it with identical fields on retries.
+
+A saved task can return warnings for incomplete links; fix their cause and retry with the same key.
+
 If timing is implied but not explicit, leave `due=null` and keep the timing words in `description`."""
 _LINK_TASK_TO_CAPTURE_DESCRIPTION = """Link an existing task note to a confirmed prior inbox capture.
 
@@ -102,6 +106,13 @@ async def create_task(
             ),
         ),
     ] = None,
+    idempotency_key: Annotated[
+        str | None,
+        Field(
+            min_length=1,
+            description="Stable operation key; reuse with identical input on retry.",
+        ),
+    ] = None,
 ) -> CreateTaskToolResponse:
     """Create a structured Obsidian task note from natural language.
 
@@ -127,6 +138,7 @@ async def create_task(
         due=due,
         priority=priority,
         link_capture_id=link_capture_id,
+        idempotency_key=idempotency_key,
     )
 
     outcome = task_creation_outcome(task)

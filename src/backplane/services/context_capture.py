@@ -7,7 +7,7 @@ import hashlib
 import json
 import uuid
 import zoneinfo
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING
 
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
@@ -77,7 +77,7 @@ def _aware(value: dt.datetime | None) -> dt.datetime | None:
     return value.replace(tzinfo=dt.UTC)
 
 
-def _required_aware(value: dt.datetime) -> dt.datetime:
+def aware_timestamp(value: dt.datetime) -> dt.datetime:
     """Normalize a required database timestamp.
 
     Returns:
@@ -93,13 +93,14 @@ def _required_aware(value: dt.datetime) -> dt.datetime:
     return normalized
 
 
-@final
 class ContextCaptureService:
     """Shared service behind context REST and MCP adapters."""
 
     def __init__(self, session_factory: AsyncSessionFactory | None = None) -> None:
         """Bind the service to an explicit or configured async session factory."""
-        self._session_factory = session_factory or context_session_factory()
+        self._session_factory: AsyncSessionFactory = (
+            session_factory or context_session_factory()
+        )
 
     @staticmethod
     def _event_from_row(row: ContextEventRow) -> ContextEvent:
@@ -111,7 +112,7 @@ class ContextCaptureService:
             correlation_key=row.correlation_key,
             idempotency_key=row.idempotency_key,
             kind=row.kind,
-            occurred_at=_required_aware(row.occurred_at),
+            occurred_at=aware_timestamp(row.occurred_at),
             ended_at=_aware(row.ended_at),
             timezone=row.timezone,
             confidence=row.confidence,
@@ -121,8 +122,8 @@ class ContextCaptureService:
             payload=row.payload,
             provenance=row.provenance,
             supersedes_event_id=row.supersedes_event_id,
-            created_at=_required_aware(row.created_at),
-            updated_at=_required_aware(row.updated_at),
+            created_at=aware_timestamp(row.created_at),
+            updated_at=aware_timestamp(row.updated_at),
         )
 
     @staticmethod
@@ -134,8 +135,8 @@ class ContextCaptureService:
             context_prompt_limit=row.context_prompt_limit,
             cooldown_seconds=row.cooldown_seconds,
             minimum_event_confidence=row.minimum_event_confidence,
-            created_at=_required_aware(row.created_at),
-            updated_at=_required_aware(row.updated_at),
+            created_at=aware_timestamp(row.created_at),
+            updated_at=aware_timestamp(row.updated_at),
         )
 
     @staticmethod
@@ -157,8 +158,8 @@ class ContextCaptureService:
                 id=change.id,
                 prompt_id=change.prompt_id,
                 status=CapturePromptStatus(change.status),
-                occurred_at=_required_aware(change.occurred_at),
-                recorded_at=_required_aware(change.recorded_at),
+                occurred_at=aware_timestamp(change.occurred_at),
+                recorded_at=aware_timestamp(change.recorded_at),
                 reason=change.reason,
             )
             for change in (
@@ -198,8 +199,8 @@ class ContextCaptureService:
             cancellation_reason=row.cancellation_reason,
             delivery_context=row.delivery_context,
             provenance=row.provenance,
-            created_at=_required_aware(row.created_at),
-            updated_at=_required_aware(row.updated_at),
+            created_at=aware_timestamp(row.created_at),
+            updated_at=aware_timestamp(row.updated_at),
         )
 
     @staticmethod
@@ -213,8 +214,8 @@ class ContextCaptureService:
             payload=row.payload,
             response_context=row.response_context,
             provenance=row.provenance,
-            responded_at=_required_aware(row.responded_at),
-            created_at=_required_aware(row.created_at),
+            responded_at=aware_timestamp(row.responded_at),
+            created_at=aware_timestamp(row.created_at),
         )
 
     @staticmethod
@@ -987,7 +988,7 @@ class ContextCaptureService:
         prompt_id: uuid.UUID,
         request: CapturePromptDismissRequest,
     ) -> CapturePrompt:
-        """Dismiss a scheduled or delivered prompt idempotently.
+        """Dismiss a scheduled, delivered or responded prompt idempotently.
 
         Returns:
             Updated canonical prompt.
@@ -1006,6 +1007,7 @@ class ContextCaptureService:
             if row.status not in {
                 CapturePromptStatus.SCHEDULED.value,
                 CapturePromptStatus.DELIVERED.value,
+                CapturePromptStatus.RESPONDED.value,
             }:
                 msg = f"Cannot dismiss a prompt in status {row.status!r}."
                 raise exc.ConflictError(message=msg)

@@ -313,3 +313,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .vscode
+
+# Renovate repository policy
+!/renovate.json
+
+# Versioned public deployment settings
+!/deploy/runtime.env
