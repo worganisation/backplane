@@ -13,6 +13,7 @@ from backplane.operations.daily_notes import (
     read_daily_note,
     update_daily_note_section,
 )
+from backplane.operations.daily_notes import record_diary as record_diary_operation
 from backplane.operations.daily_notes import (
     record_idea as record_idea_operation,
 )
@@ -159,6 +160,27 @@ async def get_daily_note(
     return await read_daily_note(date)
 
 
+async def record_diary(
+    content: Annotated[
+        str,
+        Field(description="Diary text, preserving words, quantities and event times."),
+    ],
+    date: Annotated[
+        dt.date | None,
+        Field(description="YYYY-MM-DD; omit for today."),
+    ] = None,
+) -> str:
+    """Save a personal experience or completed activity to Diary in the daily note.
+
+    Appends without reading first. The server adds the capture timestamp; do not add one yourself.
+    Use record_idea for possibilities and capture_task for actions to do.
+
+    Returns:
+        Confirmation after the entry is saved.
+    """
+    return await record_diary_operation(content, date)
+
+
 async def record_idea(
     *,
     idea: Annotated[
@@ -264,6 +286,7 @@ def register_obsidian_tools(mcp: FastMCP[None], *, require_oauth: bool = False) 
         auth_kwargs = oauth_tool_registration_kwargs()
 
     _ = mcp.tool(description=_ADD_DESCRIPTION, **auth_kwargs)(add_to_daily_note)
+    _ = mcp.tool(**auth_kwargs)(record_diary)
     _ = mcp.tool(description=_GET_DAILY_NOTE_DESCRIPTION, **auth_kwargs)(get_daily_note)
     _ = mcp.tool(description=_RECORD_IDEA_DESCRIPTION, **auth_kwargs)(record_idea)
     _ = mcp.tool(**auth_kwargs)(list_ideas)

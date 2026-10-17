@@ -214,6 +214,26 @@ matching path or create the requested section when appropriate.
 | `heading_path` | `string`[] | yes | — | Section path relative to the daily note body. Do not include the top-level date heading. |
 | `mode` | `append` \| `prepend` \| `replace` | no | `append` | How to combine content with the existing section. Prefer `append`; use `replace` only when explicitly requested. |
 
+#### `capture_task`
+
+Quickly save an action to do as a task and add its board card, without calling another model.
+
+Prefer for voice capture: 'I need to', 'I should', or 'add a task'. No project is required.
+Preserves original text; does not infer entity links or schedule reminders or later enrichment.
+Use create_task only when metadata enrichment or a confirmed idea link is requested.
+Reuse the same idempotency_key and fields on retries; report any returned warnings.
+
+Returns:
+    The saved task and any warnings about its board card.
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `description` | `string` | yes | — | Full original action to remember. |
+| `due` | `string`? | no | `null` | Explicit YYYY-MM-DD deadline only. |
+| `idempotency_key` | `string`? | no | `null` | Stable operation key; reuse unchanged input on retry. |
+| `priority` | `low` \| `medium` \| `high`? | no | `null` |  |
+| `title` | `string`? | no | `null` | Optional short title; omit if not supplied. |
+
 #### `create_task`
 
 Create a structured Obsidian task note for an actionable item.
@@ -391,6 +411,21 @@ The source note must exist. The destination must not already exist.
 | --- | --- | --- | --- | --- |
 | `destination_path` | `string` | yes | — | New vault-relative note path. |
 | `source_path` | `string` | yes | — | Existing vault-relative note path. |
+
+#### `record_diary`
+
+Save a personal experience or completed activity to Diary in the daily note.
+
+Appends without reading first. The server adds the capture timestamp; do not add one yourself.
+Use record_idea for possibilities and capture_task for actions to do.
+
+Returns:
+    Confirmation after the entry is saved.
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `content` | `string` | yes | — | Diary text, preserving words, quantities and event times. |
+| `date` | `date` (YYYY-MM-DD)? | no | `null` | YYYY-MM-DD; omit for today. |
 
 #### `record_idea`
 
