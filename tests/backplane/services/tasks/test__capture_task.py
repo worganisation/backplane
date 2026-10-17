@@ -90,7 +90,11 @@ async def test__capture_task__reports_saved_note_when_board_fails(
 
 @pytest.mark.parametrize(
     ("description", "title", "link_capture_id"),
-    [("  ", None, None), ("Check battery", "  ", None), ("Check battery", None, "idea-1")],
+    [
+        ("  ", None, None),
+        ("Check battery", "  ", None),
+        ("Check battery", None, "idea-1"),
+    ],
 )
 async def test__capture_task__rejects_invalid_input_before_writing(
     obsidian_vault: AsyncPath,
