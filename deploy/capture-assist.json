@@ -1,0 +1,7 @@
+{
+  "ollama_entry_id": "01KNCX3H4YMXZGB3NBNM5Z48TZ",
+  "mcp_url": "http://10.0.0.108:8000/mcp-capture",
+  "agent_name": "Qwen Capture",
+  "pipeline_name": "Capture",
+  "model": "qwen3:4b-instruct"
+}

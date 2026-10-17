@@ -107,6 +107,7 @@ _deploy-current:
     bash deploy/configure-runtime.sh
     just _mcp-restart
     if systemctl is-enabled backplane-public.service &>/dev/null; then just _mcp-public-restart; fi
+    uv run --env-file .env --env-file deploy/runtime.env python -m scripts.deploy.capture_assist
 
 # Checkout a branch, sync deps, and restart the MCP servers
 checkout branch="main":

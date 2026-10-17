@@ -126,7 +126,7 @@ python -m backplane.mcp
 
 This starts the private server on port `8000`, serving the vault REST API at `/api`.
 Without HA MCP proxying, its MCP transport remains SSE; with the proxy enabled, it
-retains the existing streamable `/mcp` and `/mcp-ha` routes.
+retains the existing streamable `/mcp` and `/mcp-ha` routes. The private `/mcp-capture` endpoint exposes only diary, idea and fast task capture for the dedicated [Capture Assist pipeline](docs/voice-capture.md#dedicated-capture-pipeline).
 
 ### REST API
 
