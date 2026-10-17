@@ -149,8 +149,10 @@ This section is generated automatically from the registered MCP surface. Run `pr
 Backplane manages the user's Obsidian vault.
 
 Tool routing:
-- Use `add_to_daily_note` when the user wants to capture something in today's note or a daily-note section.
-- Use `create_task` for actionable things the user needs, wants, or intends to do.
+- Use `record_diary` for personal experiences and completed activities; it adds the capture timestamp.
+- Use `add_to_daily_note` for a different daily-note section explicitly requested by the user.
+- Use `capture_task` for actionable things the user needs, wants, or intends to do, without model enrichment.
+- Use `create_task` when metadata enrichment or a confirmed prior idea link is requested.
 - Use `record_idea` for loose, speculative, non-committal ideas.
 - Use `list_ideas` to browse captures and `get_idea` to read a stable capture ID.
   Legacy minute groups can contain several ideas.
@@ -193,8 +195,8 @@ Add content to a section of the user's Obsidian daily note.
 
 Use when the user wants to capture something "today", "in my daily note", or into a daily-note section.
 
-For personal diary entries without a named section, use heading_path=["Diary"],
-mode="append", and create_section_if_not_exists=true. Do not read the note first for this default.
+For personal diary entries without a named section, prefer `record_diary`, which adds
+the capture timestamp and appends to Diary without reading first.
 Preserve the user's wording and any stated event time; never invent an event time.
 Use the requested date for past entries, or today when no date is specified.
 
@@ -214,12 +216,33 @@ matching path or create the requested section when appropriate.
 | `heading_path` | `string`[] | yes | — | Section path relative to the daily note body. Do not include the top-level date heading. |
 | `mode` | `append` \| `prepend` \| `replace` | no | `append` | How to combine content with the existing section. Prefer `append`; use `replace` only when explicitly requested. |
 
+#### `capture_task`
+
+Quickly save an action to do as a task and add its board card, without calling another model.
+
+Prefer for voice capture: 'I need to', 'I should', or 'add a task'. No project is required.
+Preserves original text; does not infer entity links or schedule reminders or later enrichment.
+Use create_task only when metadata enrichment or a confirmed idea link is requested.
+Reuse the same idempotency_key and fields on retries; report any returned warnings.
+
+Returns:
+    The saved task and any warnings about its board card.
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `description` | `string` | yes | — | Full original action to remember. |
+| `due` | `string`? | no | `null` | Explicit YYYY-MM-DD deadline only. |
+| `idempotency_key` | `string`? | no | `null` | Stable operation key; reuse unchanged input on retry. |
+| `priority` | `low` \| `medium` \| `high`? | no | `null` |  |
+| `title` | `string`? | no | `null` | Optional short title; omit if not supplied. |
+
 #### `create_task`
 
-Create a structured Obsidian task note for an actionable item.
+Create an enriched Obsidian task with model-extracted metadata and entity links.
 
-Use when the user says they need to do something, wants something on their list, asks to make a
-task, or uses phrasing like "I should…", "I need to…", "remind me to…", or "add this to my list".
+Use when metadata enrichment or linking a confirmed prior idea is requested.
+For ordinary actions to remember ("I need to", "I should", "add a task"), prefer
+`capture_task`, which saves immediately without another model call.
 
 Do not use for speculative ideas. Use `record_idea` for loose "maybe / could / worth
 investigating" captures unless the user explicitly wants to turn the idea into a task.
@@ -392,6 +415,21 @@ The source note must exist. The destination must not already exist.
 | `destination_path` | `string` | yes | — | New vault-relative note path. |
 | `source_path` | `string` | yes | — | Existing vault-relative note path. |
 
+#### `record_diary`
+
+Save a personal experience or completed activity to Diary in the daily note.
+
+Appends without reading first. The server adds the capture timestamp; do not add one yourself.
+Use record_idea for possibilities and capture_task for actions to do.
+
+Returns:
+    Confirmation after the entry is saved.
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `content` | `string` | yes | — | Diary text, preserving words, quantities and event times. |
+| `date` | `date` (YYYY-MM-DD)? | no | `null` | YYYY-MM-DD; omit for today. |
+
 #### `record_idea`
 
 Record a loose, non-actionable idea in the Obsidian idea inbox.
@@ -405,7 +443,7 @@ Use for speculative captures such as:
 
 Do not use this for tasks or action items. If the user says they need to do something, should do
 something, wants to remember to act on something, or asks for a task/reminder/list item,
-use `create_task`.
+use `capture_task`. Use `create_task` only for requested metadata enrichment or a confirmed idea link.
 
 Convert spoken phrasing to a written sentence while preserving the user's wording as closely as possible.
 

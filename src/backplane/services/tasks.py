@@ -1216,6 +1216,8 @@ class TaskService:
         priority: enums.Priority | None = None,
         link_capture_id: str | None = None,
         idempotency_key: str | None = None,
+        *,
+        enrich_metadata: bool = True,
     ) -> CreateTaskResult:
         """Create a task note from a description and return its vault details.
 
@@ -1228,6 +1230,8 @@ class TaskService:
             priority (enums.Priority | None): Priority override (low, medium, or high).
             link_capture_id (str | None): Exact capture ID to link when a specific inbox entry has been confirmed.
             idempotency_key (str | None): Stable caller key reused only for retries of identical input.
+            enrich_metadata: Extract metadata and match inbox captures.
+                False saves a plain task without model calls.
 
         Returns:
             CreateTaskResult: Task metadata and vault details including the note path,
@@ -1242,27 +1246,57 @@ class TaskService:
             msg = "idempotency_key must not be blank."
             raise exc.BadRequestError(msg)
 
+        if not enrich_metadata and link_capture_id is not None:
+            msg = "Plain task capture does not accept a linked capture."
+            raise exc.BadRequestError(msg)
+
+        if not enrich_metadata and (
+            not description.strip() or (title is not None and not title.strip())
+        ):
+            msg = "Task description and any supplied title must not be blank."
+            raise exc.BadRequestError(msg)
+
         key_digest = (
             hashlib.sha256(idempotency_key.encode()).hexdigest()
             if idempotency_key is not None
             else None
         )
-        fingerprint = hashlib.sha256(
-            json.dumps([description, title, due, priority, link_capture_id]).encode(),
-        ).hexdigest()
+        fingerprint_input = json.dumps([
+            description,
+            title,
+            due,
+            priority,
+            link_capture_id,
+        ])
+        if not enrich_metadata:
+            fingerprint_input = "capture_task:" + fingerprint_input
+
+        fingerprint = hashlib.sha256(fingerprint_input.encode()).hexdigest()
         async with vault_write_lock():
             saved = await _find_saved_intake(key_digest, fingerprint)
 
         if saved is not None:
             return await _finish_task_intake(*saved, replayed=True)
 
-        capture_selection = await _select_task_capture(description, link_capture_id)
-        metadata = await _extract_metadata(
-            _metadata_source(description, capture_selection.matched),
-            title,
-            priority,
-            fallback_description=description,
-        )
+        if enrich_metadata:
+            capture_selection = await _select_task_capture(description, link_capture_id)
+            metadata = await _extract_metadata(
+                _metadata_source(description, capture_selection.matched),
+                title,
+                priority,
+                fallback_description=description,
+            )
+        else:
+            capture_selection = MatchOutcome(matched=None, candidates=[])
+            metadata = TaskMetadata(
+                title=title or description.strip()[:60],
+                priority=priority or enums.Priority.MEDIUM,
+                domains=[],
+                resources=[],
+                projects=[],
+                people=[],
+            )
+
         intake = _TaskIntake(
             key_digest=key_digest,
             fingerprint=fingerprint,
