@@ -623,4 +623,6 @@ See [vault filesystem diagnostics](docs/deployment-filesystems.md) for atomic-wr
 
 Production application settings live in [`deploy/runtime.env`](deploy/runtime.env). Changes to the model, Ollama endpoint, logging, timezone, Home Assistant integration, and client redirect patterns ship through the normal Backplane release and deployment CI. Both MCP services load this file after the infrastructure-managed `.env`, so its public settings take precedence. Infrastructure supplies credentials, the vault path, and the public/OIDC registration endpoints and client ID. Local development and generic `just setup` installations use their own `.env`.
 
+See [Assist voice capture](docs/voice-capture.md) for agent setup and diary/idea/task routing.
+
 See [manual release procedure](docs/releases.md) for deploy-key authentication and release verification.
