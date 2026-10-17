@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.8.4 (2026-10-17)
+
+### Bug Fixes
+
+- Route Assist voice captures to diary ideas and tasks
+  ([#122](https://github.com/worganisation/backplane/pull/122),
+  [`4a8b233`](https://github.com/worganisation/backplane/commit/4a8b2334bf3fb9d0edcf7937ac146316baab75d0))
+
+
 ## v0.8.3 (2026-10-17)
 
 ### Bug Fixes
