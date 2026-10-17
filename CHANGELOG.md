@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.8.3 (2026-10-17)
+
+### Bug Fixes
+
+- Own application runtime settings in Backplane
+  ([#121](https://github.com/worganisation/backplane/pull/121),
+  [`5c996a7`](https://github.com/worganisation/backplane/commit/5c996a7f63e03d6ce80fa72e2574a07b94d7718e))
+
+
 ## v0.8.2 (2026-10-14)
 
 ### Bug Fixes
