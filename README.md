@@ -193,8 +193,14 @@ Add content to a section of the user's Obsidian daily note.
 
 Use when the user wants to capture something "today", "in my daily note", or into a daily-note section.
 
-When the target section is unknown or ambiguous, call `get_daily_note` first to inspect the note's
-headings. If a section lookup fails, the error includes available sections at that level.
+For personal diary entries without a named section, use heading_path=["Diary"],
+mode="append", and create_section_if_not_exists=true. Do not read the note first for this default.
+Preserve the user's wording and any stated event time; never invent an event time.
+Use the requested date for past entries, or today when no date is specified.
+
+For other captures where the target section is unknown or ambiguous, call `get_daily_note`
+first to inspect the note's headings. If a section lookup fails, the error includes
+available sections at that level.
 
 If the user explicitly asks for another section, create it with `create_section_if_not_exists=true`.
 If a section is missing and the tool returns available sections, retry with the closest
@@ -622,5 +628,7 @@ trailing space: `https://backplane-mcp.example.com/mcp`.
 See [vault filesystem diagnostics](docs/deployment-filesystems.md) for atomic-write constraints and the LXC deployment layout.
 
 Production application settings live in [`deploy/runtime.env`](deploy/runtime.env). Changes to the model, Ollama endpoint, logging, timezone, Home Assistant integration, and client redirect patterns ship through the normal Backplane release and deployment CI. Both MCP services load this file after the infrastructure-managed `.env`, so its public settings take precedence. Infrastructure supplies credentials, the vault path, and the public/OIDC registration endpoints and client ID. Local development and generic `just setup` installations use their own `.env`.
+
+See [Assist voice capture](docs/voice-capture.md) for agent setup and diary/idea/task routing.
 
 See [manual release procedure](docs/releases.md) for deploy-key authentication and release verification.
