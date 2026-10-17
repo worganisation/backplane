@@ -200,6 +200,9 @@ class Settings(BaseSettings):
     # ========================================================================
     # LLM
 
+    ollama_base_url: AnyHttpUrl = AnyHttpUrl("http://localhost:11434/v1")
+    diary_narrative_model: Annotated[str, Field(min_length=1)] = "qwen3:4b-instruct"
+
     task_metadata_model: Annotated[
         str,
         Field(

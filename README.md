@@ -407,6 +407,22 @@ or needs daily-note context for a follow-up.
 | --- | --- | --- | --- | --- |
 | `date` | `date` (YYYY-MM-DD)? | no | `null` | Daily note date in YYYY-MM-DD. Defaults to today's local date. |
 
+#### `get_diary_review`
+
+Read the exact daily review before discussing the diary notification.
+
+Omit prompt_id for the latest delivered review. If absent, ask which day the user
+means. Ask one combined question about unresolved events and possible walks.
+Calendar entries are scheduled, never evidence of attendance. Consult responses
+for already answered IDs; do not ask again. Mood notes are the user's words.
+
+Returns:
+    Exact prompt and entry IDs, source facts and prior explicit responses.
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `prompt_id` | `string`? | no | `null` |  |
+
 #### `get_idea`
 
 Read the original capture text by stable idea ID or legacy date/minute ID.
@@ -589,6 +605,26 @@ Return the prompt and immutable response after an idempotent append.
 | --- | --- | --- | --- | --- |
 | `prompt_id` | `string` | yes | — |  |
 | `request` | `object` | yes | — | Idempotent response captured from a delivered prompt. |
+
+#### `save_diary_review`
+
+Save explicit user decisions using exact IDs from get_diary_review.
+
+Give each deliberate submission a unique request_id; reuse it only for retries
+of that exact submission. A later correction needs a new request_id.
+Only confirm what the user explicitly says. A calendar confirmation means attended;
+an outing confirmation means an outing, not a dog walk. Use dog_walk only when
+explicitly confirmed, dismissed for incorrect suggestions. Keep additional detail
+verbatim in note. Never translate silence or a general acknowledgement into
+attendance or a dog walk. Confirm success only after this tool returns.
+
+Returns:
+    Acknowledgement after durable storage and successful Obsidian export.
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `prompt_id` | `string` | yes | — |  |
+| `response` | `object` | yes | — | User-confirmed decisions and verbatim additional diary detail. |
 
 #### `save_idea_elaboration`
 
@@ -829,3 +865,5 @@ Production application settings live in [`deploy/runtime.env`](deploy/runtime.en
 See [Assist voice capture](docs/voice-capture.md) for agent setup and diary/idea/task routing.
 
 See [manual release procedure](docs/releases.md) for deploy-key authentication and release verification.
+
+See [Automatic diary](docs/automatic-diary.md) for HA sources, daily confirmation, local Qwen narratives and activation requirements.
