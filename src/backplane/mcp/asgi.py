@@ -11,6 +11,7 @@ from starlette.routing import BaseRoute, Mount, Route
 from backplane.api.app import create_api_app
 from backplane.mcp.app_factory import build_backplane_mcp
 from backplane.mcp.auth import create_public_mcp_auth
+from backplane.mcp.capture import build_capture_mcp
 from backplane.mcp.upstreams import get_enabled_upstreams, mount_upstream
 from backplane.utils.settings import SETTINGS
 
@@ -168,4 +169,9 @@ def compose_private_app() -> StarletteWithLifespan:
         mcp_app = build_backplane_mcp(notify_home_assistant=True).http_app(
             transport="sse",
         )
+    capture_app = build_capture_mcp().http_app(transport="http", path="/mcp-capture")
+    mcp_app = _compose_mcp_apps(
+        core_app=mcp_app,
+        upstream_apps=(("/mcp-capture", capture_app),),
+    )
     return _compose_private_apps(mcp_app=mcp_app)
