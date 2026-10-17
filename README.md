@@ -8,6 +8,8 @@ AI-facing gateway for local services and smart home orchestration
 [![Pre-Commit Hooks](https://img.shields.io/github/actions/workflow/status/worgarside/backplane/pre-commit-hooks.yml?branch=main&label=pre-commit)](https://github.com/worgarside/backplane/actions/workflows/pre-commit-hooks.yml)
 [![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/worgarside/backplane?utm_source=oss&utm_medium=github&utm_campaign=worgarside%2Fbackplane&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)](https://coderabbit.ai)
 
+See [Idea follow-ups](docs/idea-followups.md) for contextual notification prompts and Assist elaboration.
+
 ## Installation
 
 Backplane is designed to run as a persistent service on a Linux host (tested on Debian 13 in a Proxmox LXC).
@@ -33,6 +35,38 @@ $EDITOR .env
 ```
 
 Set `OBSIDIAN_VAULT_PATH` to the local path where the vault will be synced.
+
+Context capture is optional for existing vault-only deployments. To enable it, provision a
+PostgreSQL database and set:
+
+- `CONTEXT_DATABASE_URL` to an async SQLAlchemy URL such as
+  `postgresql+asyncpg://backplane:password@postgres/backplane`
+- `CONTEXT_API_TOKEN` to a high-entropy secret used only for context REST requests
+
+Both values are treated as secrets and redacted from settings representations.
+The infrastructure repository owns the PostgreSQL database, login, access rules,
+and SOPS-encrypted credentials. Backplane owns its tables and Alembic migrations.
+The infrastructure declaration uses database/login `backplane_context` on LXC 107;
+application access originates from Backplane LXC 108.
+
+`setup.sh`, `just deploy`, and `just checkout` check that every Alembic head is
+applied when `CONTEXT_DATABASE_URL` is configured. They never apply migrations.
+A missing or outdated schema fails the check before service restart. Provisioning
+an empty database does not enable context capture by itself.
+
+For an authorized schema change, verify a recoverable database backup (or record
+that this is the approved initial empty-database setup), stop both Backplane
+services, and run:
+
+```bash
+BACKPLANE_CONTEXT_MIGRATE=1 just context-migrate BACKUP_REFERENCE
+```
+
+The reference is an operator attestation, not automatic proof of a tested backup.
+The command refuses running systemd services, applies the reviewed migration and
+checks the resulting Alembic heads. It does not restart services. Inspect failures
+before restarting; database rollback/recovery is a separate explicit operation.
+Local development without systemd uses Alembic directly against a disposable test database. Database tests require Docker and use Testcontainers with `postgres:17`, matching the deployed major version. Each pytest worker reuses a container, each test has an isolated database, and service calls use independent connections and transactions. Alembic initializes the test schema; migration coverage checks upgrade, ORM metadata agreement and downgrade. Live deployment remains a separately authorized operation.
 
 If you plan to run the public ChatGPT-facing MCP service, also configure the
 OAuth variables documented in `.env.example` before running setup with
@@ -137,6 +171,21 @@ It provides semantic vault operations for daily notes, ideas, note moves, tasks,
 entities, and note search. The API does not expose the Home Assistant MCP passthrough;
 that remains an MCP-only route when configured.
 
+#### Context capture
+
+The context endpoints persist source observations, prompt policy decisions, immutable
+responses, and prompt status history. They are inert until `CONTEXT_DATABASE_URL` is configured,
+and every `/context`, `/capture-policies`, and `/capture-prompts` request requires:
+
+```http
+Authorization: Bearer <CONTEXT_API_TOKEN>
+```
+
+Prompt policy has independent baseline and contextual daily budgets, one global cooldown, and
+a configurable minimum event confidence. Budgets use the intended schedule date in the user's
+IANA timezone. Context candidates fail closed during cooldown; baseline candidates may be delayed
+to the next eligible time. Correlated cross-source observations are deduplicated centrally.
+
 <!-- backplane:mcp-catalog:start -->
 ## MCP tools and resources
 
@@ -149,6 +198,9 @@ This section is generated automatically from the registered MCP surface. Run `pr
 Backplane manages the user's Obsidian vault.
 
 Tool routing:
+- When the user refers to an idea notification, call `get_idea_followup` to retrieve
+  its exact idea and prompt IDs. Save elaboration with `save_idea_elaboration`;
+  do not record it as a new idea or create tasks/projects without explicit commitment.
 - Use `record_diary` for personal experiences and completed activities; it adds the capture timestamp.
 - Use `add_to_daily_note` for a different daily-note section explicitly requested by the user.
 - Use `capture_task` for actionable things the user needs, wants, or intends to do, without model enrichment.
@@ -289,6 +341,44 @@ Fails if a note with the same name already exists.
 | `kind` | `domain` \| `person` \| `project` \| `resource` | yes | — | Entity kind: `domain`, `person`, `project`, or `resource`. |
 | `name` | `string` | yes | — | Human-readable note title. |
 
+#### `dismiss_capture_prompt`
+
+Return the canonical prompt after dismissing it.
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `prompt_id` | `string` | yes | — |  |
+| `request` | `object` | yes | — | Prompt dismissal record. |
+
+#### `evaluate_capture_prompt`
+
+Return the deterministic global-policy decision for a prompt candidate.
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `request` | `object` | yes | — | Candidate prompt submitted for deterministic global policy evaluation. |
+
+#### `expire_capture_prompt`
+
+Return the canonical prompt after expiring it.
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `prompt_id` | `string` | yes | — |  |
+| `request` | `object` | yes | — | Prompt expiry record. |
+
+#### `find_context_events`
+
+Return a bounded chronological context window.
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `end` | `string`? | no | `null` |  |
+| `kinds` | `string`[]? | no | `null` |  |
+| `limit` | `integer` | no | `100` |  |
+| `start` | `string`? | no | `null` |  |
+| `user_id` | `string` | yes | — |  |
+
 #### `find_vault_notes`
 
 Find notes by approximate title or filename.
@@ -327,6 +417,21 @@ Returns:
 | Parameter | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `capture_id` | `string` | yes | — |  |
+
+#### `get_idea_followup`
+
+Read the idea from the user's follow-up notification before discussing it.
+
+Omit prompt_id for the current notification. If no current context exists,
+ask which idea the user means; never guess or choose a different idea.
+Ask one useful question about the outcome, feasibility or next step.
+
+Returns:
+    Original wording, exact IDs and prior elaborations, or None.
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `prompt_id` | `string`? | no | `null` |  |
 
 #### `get_vault_entity`
 
@@ -401,6 +506,15 @@ Returned paths are relative to the note title.
 | `kind` | `domain` \| `person` \| `project` \| `resource` | yes | — | Entity kind: `domain`, `person`, `project`, or `resource`. |
 | `name` | `string` | yes | — | Human-readable entity name. |
 
+#### `mark_capture_prompt_delivered`
+
+Return the canonical prompt after recording successful delivery.
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `prompt_id` | `string` | yes | — |  |
+| `request` | `object` | yes | — | Successful notification-delivery record. |
+
 #### `move_note`
 
 Move or rename an Obsidian markdown note.
@@ -414,6 +528,22 @@ The source note must exist. The destination must not already exist.
 | --- | --- | --- | --- | --- |
 | `destination_path` | `string` | yes | — | New vault-relative note path. |
 | `source_path` | `string` | yes | — | Existing vault-relative note path. |
+
+#### `record_context_event`
+
+Return the canonical result after recording one contextual observation.
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `request` | `object` | yes | — | Idempotent context-event ingestion request. |
+
+#### `record_context_events`
+
+Return ordered results after recording an observation batch atomically.
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `request` | `object` | yes | — | Atomic context-event batch ingestion request. |
 
 #### `record_diary`
 
@@ -450,6 +580,35 @@ Convert spoken phrasing to a written sentence while preserving the user's wordin
 | Parameter | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `idea` | `string` | yes | — | The loose, non-actionable idea to record. Preserve the user's wording as closely as possible. |
+
+#### `respond_to_capture_prompt`
+
+Return the prompt and immutable response after an idempotent append.
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `prompt_id` | `string` | yes | — |  |
+| `request` | `object` | yes | — | Idempotent response captured from a delivered prompt. |
+
+#### `save_idea_elaboration`
+
+Save the user's elaboration against the exact IDs from get_idea_followup.
+
+Preserve the user's wording. This stores development notes, not a commitment.
+Create a project or task only when the user explicitly asks to commit to it.
+For tasks use capture_task then link_task_to_capture with its task filename stem and
+this capture_id. This avoids model enrichment; projectless tasks are valid.
+For a project, include the original idea wikilink and this development note in
+its Overview using create_vault_entity/update_vault_entity.
+
+Returns:
+    The saved development note's wikilink; confirm only after success.
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `capture_id` | `string` | yes | — |  |
+| `prompt_id` | `string` | yes | — |  |
+| `text` | `string` | yes | — |  |
 
 #### `search_vault_notes`
 

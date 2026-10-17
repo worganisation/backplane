@@ -6,7 +6,16 @@ from fastapi import FastAPI
 
 from backplane import __version__
 from backplane.api.errors import handle_backplane_error
-from backplane.api.routers import daily_notes, entities, health, notes, search, tasks
+from backplane.api.routers import (
+    context_capture,
+    daily_notes,
+    entities,
+    health,
+    idea_followup,
+    notes,
+    search,
+    tasks,
+)
 from backplane.utils import exc
 
 
@@ -24,6 +33,8 @@ def create_api_app() -> FastAPI:
     app.add_exception_handler(exc.BackplaneError, handle_backplane_error)
     for router in (
         health.router,
+        idea_followup.router,
+        context_capture.router,
         daily_notes.router,
         notes.router,
         tasks.router,
