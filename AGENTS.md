@@ -114,6 +114,15 @@ alongside `/api` in its configured SSE or streamable-HTTP mode.
 - **Pre-commit** enforces conventional commits, dependency sync (`uv-lock`), and all of the above linters.
 - **Semantic release** drives version bumps from conventional commit messages.
 
+## Context database ownership
+
+Infrastructure Ansible provisions the PostgreSQL database/login and scoped access.
+SOPS owns creation credentials and the context API token. Backplane owns Alembic
+schema revisions. Ordinary setup/deploy/checkout only check migration heads; they
+do not apply DDL. The explicit `context-migrate` command requires an owner gate,
+a backup reference and stopped systemd services. Do not run it or provision
+database objects under code-review-only authorization.
+
 ## Release policy
 
 Semantic Release is triggered only by an explicit workflow_dispatch on main.
@@ -121,3 +130,7 @@ Merges and branch pushes do not create releases. Deployment workflows, where
 present, consume published releases or release tags. Do not introduce automatic
 release creation or branch-push deployment; environment approval gates are not
 part of the release authorization flow.
+
+## Production configuration
+
+Public application settings belong in `deploy/runtime.env` and ship through release CI. `just deploy` installs systemd drop-ins for both MCP services before restarting them. The runtime file overrides matching infrastructure environment values; keep it free of credentials. Infrastructure owns provisioning, secrets, the vault path, and OIDC/public endpoint registration settings. Do not add application preferences to the infrastructure environment allowlist.

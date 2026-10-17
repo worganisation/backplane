@@ -2,16 +2,39 @@
 
 from __future__ import annotations
 
+import datetime as dt
 from typing import TYPE_CHECKING
 
 from backplane.services.ideas import IdeaService
 from backplane.services.obsidian import ObsidianService
-from backplane.utils import exc, format_human_date, today
+from backplane.utils import SETTINGS, exc, format_human_date, today
 
 if TYPE_CHECKING:
-    import datetime as dt
-
     from backplane.services.vault_entities import UpdateMode
+
+
+async def record_diary(content: str, date: dt.date | None = None) -> str:
+    """Append a diary entry with a server-generated capture timestamp.
+
+    Returns:
+        A short confirmation after the note is saved.
+
+    Raises:
+        BadRequestError: If the entry contains no text.
+    """
+    if not content.strip():
+        msg = "Diary content must not be blank."
+        raise exc.BadRequestError(msg)
+
+    captured_at = dt.datetime.now(SETTINGS.local_timezone)
+    resolved_date = date or captured_at.date()
+    _ = await update_daily_note_section(
+        heading_path=("Diary",),
+        content=f"Recorded {captured_at:%Y-%m-%d %H:%M %z} — {content}",
+        create_section_if_not_exists=True,
+        date=resolved_date,
+    )
+    return f"Diary entry saved to {resolved_date.isoformat()}."
 
 
 async def read_daily_note(date: dt.date | None = None) -> str:

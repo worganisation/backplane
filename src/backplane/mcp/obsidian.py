@@ -13,6 +13,7 @@ from backplane.operations.daily_notes import (
     read_daily_note,
     update_daily_note_section,
 )
+from backplane.operations.daily_notes import record_diary as record_diary_operation
 from backplane.operations.daily_notes import (
     record_idea as record_idea_operation,
 )
@@ -27,8 +28,14 @@ _ADD_DESCRIPTION = """Add content to a section of the user's Obsidian daily note
 
 Use when the user wants to capture something "today", "in my daily note", or into a daily-note section.
 
-When the target section is unknown or ambiguous, call `get_daily_note` first to inspect the note's
-headings. If a section lookup fails, the error includes available sections at that level.
+For personal diary entries without a named section, prefer `record_diary`, which adds
+the capture timestamp and appends to Diary without reading first.
+Preserve the user's wording and any stated event time; never invent an event time.
+Use the requested date for past entries, or today when no date is specified.
+
+For other captures where the target section is unknown or ambiguous, call `get_daily_note`
+first to inspect the note's headings. If a section lookup fails, the error includes
+available sections at that level.
 
 If the user explicitly asks for another section, create it with `create_section_if_not_exists=true`.
 If a section is missing and the tool returns available sections, retry with the closest
@@ -50,7 +57,7 @@ Use for speculative captures such as:
 
 Do not use this for tasks or action items. If the user says they need to do something, should do
 something, wants to remember to act on something, or asks for a task/reminder/list item,
-use `create_task`.
+use `capture_task`. Use `create_task` only for requested metadata enrichment or a confirmed idea link.
 
 Convert spoken phrasing to a written sentence while preserving the user's wording as closely as possible."""
 
@@ -151,6 +158,27 @@ async def get_daily_note(
     """
     logger.info("get_daily_note: date={}", date)
     return await read_daily_note(date)
+
+
+async def record_diary(
+    content: Annotated[
+        str,
+        Field(description="Diary text, preserving words, quantities and event times."),
+    ],
+    date: Annotated[
+        dt.date | None,
+        Field(description="YYYY-MM-DD; omit for today."),
+    ] = None,
+) -> str:
+    """Save a personal experience or completed activity to Diary in the daily note.
+
+    Appends without reading first. The server adds the capture timestamp; do not add one yourself.
+    Use record_idea for possibilities and capture_task for actions to do.
+
+    Returns:
+        Confirmation after the entry is saved.
+    """
+    return await record_diary_operation(content, date)
 
 
 async def record_idea(
@@ -258,6 +286,7 @@ def register_obsidian_tools(mcp: FastMCP[None], *, require_oauth: bool = False) 
         auth_kwargs = oauth_tool_registration_kwargs()
 
     _ = mcp.tool(description=_ADD_DESCRIPTION, **auth_kwargs)(add_to_daily_note)
+    _ = mcp.tool(**auth_kwargs)(record_diary)
     _ = mcp.tool(description=_GET_DAILY_NOTE_DESCRIPTION, **auth_kwargs)(get_daily_note)
     _ = mcp.tool(description=_RECORD_IDEA_DESCRIPTION, **auth_kwargs)(record_idea)
     _ = mcp.tool(**auth_kwargs)(list_ideas)

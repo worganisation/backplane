@@ -7,7 +7,7 @@ packages = ["src/backplane"]
 
 [project]
 name = "backplane"
-version = "0.8.1"
+version = "0.8.5"
 description = "AI-facing gateway for local services and smart home orchestration"
 readme = "README.md"
 requires-python = ">=3.14"
@@ -22,11 +22,14 @@ dependencies = [
     "pydantic>=2.13.5",
     "pydantic-settings>=2.15.0",
     "ruamel-yaml>=0.19.1",
-    "pydantic-ai>=2.43.0",
+    "pydantic-ai>=2.53.0",
     "rapidfuzz>=3.14.6",
     "uvicorn>=0.53.0",
     "uvloop>=0.22.1",
     "mdformat-wikilink>=0.3.0",
+    "sqlalchemy[asyncio]>=2.0.48",
+    "asyncpg>=0.31.0",
+    "alembic>=1.18.0",
 ]
 
 [dependency-groups]
@@ -40,6 +43,7 @@ dev = [
     "pytest-mock>=3.15.1",
     "pytest-randomly>=5.0.0",
     "pytest-xdist>=3.8.0",
+    "testcontainers[postgres]>=4.15.0",
 ]
 
 [tool.pytest.ini_options]
