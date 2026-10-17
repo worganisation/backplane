@@ -6,18 +6,15 @@ import asyncio
 from typing import TYPE_CHECKING
 
 from alembic import command
+from alembic.autogenerate import compare_metadata
 from alembic.config import Config
-from pydantic import SecretStr
+from alembic.migration import MigrationContext
 from sqlalchemy import inspect
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from backplane.context.tables import ContextBase
-from backplane.utils import SETTINGS
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
-    import pytest
     from sqlalchemy.engine import Connection
 
 
@@ -31,27 +28,32 @@ def _schema(connection: Connection) -> dict[str, set[str]]:
 
 
 async def test__context_migration__matches_orm_metadata_and_downgrades(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
+    context_database_url: str,
 ) -> None:
     """Alembic and ORM metadata describe the same tables and columns."""
-    database_path = tmp_path / "migration.db"
-    database_url = f"sqlite+aiosqlite:///{database_path}"
-    monkeypatch.setattr(SETTINGS, "context_database_url", SecretStr(database_url))
     config = Config("alembic.ini")
 
     await asyncio.to_thread(command.upgrade, config, "head")
-    engine = create_async_engine(database_url)
-    async with engine.connect() as connection:
-        migrated = await connection.run_sync(_schema)
-    expected = {
-        table.name: {column.name for column in table.columns}
-        for table in ContextBase.metadata.sorted_tables
-    }
-    assert migrated == expected
+    engine = create_async_engine(context_database_url)
+    try:
+        async with engine.connect() as connection:
+            migrated = await connection.run_sync(_schema)
+            differences = await connection.run_sync(
+                lambda connection: compare_metadata(
+                    MigrationContext.configure(connection),
+                    ContextBase.metadata,
+                ),
+            )
+        expected = {
+            table.name: {column.name for column in table.columns}
+            for table in ContextBase.metadata.sorted_tables
+        }
+        assert migrated == expected
+        assert differences == []
 
-    await asyncio.to_thread(command.downgrade, config, "base")
-    async with engine.connect() as connection:
-        remaining = await connection.run_sync(_schema)
-    await engine.dispose()
+        await asyncio.to_thread(command.downgrade, config, "base")
+        async with engine.connect() as connection:
+            remaining = await connection.run_sync(_schema)
+    finally:
+        await engine.dispose()
     assert remaining == {}

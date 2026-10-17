@@ -7,6 +7,7 @@ import datetime as dt
 from typing import TYPE_CHECKING
 
 import pytest
+from sqlalchemy import select, text
 
 from backplane.context.schemas import (
     CaptureBudgetClass,
@@ -22,7 +23,7 @@ from backplane.context.schemas import (
     ContextEventCreate,
     ContextEventStatus,
 )
-from backplane.context.tables import CapturePolicyRow
+from backplane.context.tables import CapturePolicyRow, CapturePromptRow
 from backplane.utils import exc
 
 if TYPE_CHECKING:
@@ -663,3 +664,53 @@ async def test__prompt_lifecycle__records_terminal_timing_and_reasons(
             first.prompt.id,
             CapturePromptDismissRequest(dismissed_at=dismissed_at, reason="not_now"),
         )
+
+
+async def test__mark_delivered__waits_for_postgresql_row_lock(
+    context_service: ContextCaptureService,
+    context_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """Delivery waits on another connection's row lock, then observes its commit."""
+    event_id = (await context_service.ingest_event(_event("locked-delivery"))).event.id
+    evaluated = await context_service.evaluate_prompt(_prompt("locked", event_id))
+
+    async with (
+        asyncio.TaskGroup() as tasks,
+        context_session_factory() as holder,
+        holder.begin(),
+    ):
+        prompt = await holder.scalar(
+            select(CapturePromptRow)
+            .where(CapturePromptRow.id == evaluated.prompt.id)
+            .with_for_update(),
+        )
+        assert prompt is not None
+        holder_pid = await holder.scalar(text("SELECT pg_backend_pid()"))
+        delivery = tasks.create_task(
+            context_service.mark_delivered(
+                prompt.id,
+                CapturePromptDeliveryRequest(),
+            ),
+        )
+
+        async with context_session_factory() as observer, asyncio.timeout(5):
+            while not (
+                waiting_pid := await observer.scalar(
+                    text(
+                        "SELECT pid FROM pg_stat_activity "
+                        "WHERE :holder = ANY(pg_blocking_pids(pid)) "
+                        "AND query ILIKE '%FOR UPDATE%'",
+                    ),
+                    {"holder": holder_pid},
+                )
+            ):
+                await observer.rollback()
+                await asyncio.sleep(0.01)
+
+            assert waiting_pid != holder_pid
+            assert not delivery.done()
+
+        prompt.wording = "Committed while holding the row lock"
+
+    assert delivery.result().status is CapturePromptStatus.DELIVERED
+    assert delivery.result().wording == "Committed while holding the row lock"

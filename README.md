@@ -66,9 +66,7 @@ The reference is an operator attestation, not automatic proof of a tested backup
 The command refuses running systemd services, applies the reviewed migration and
 checks the resulting Alembic heads. It does not restart services. Inspect failures
 before restarting; database rollback/recovery is a separate explicit operation.
-Local development without systemd uses Alembic directly against a disposable test
-database. Schema tests exercise SQLite locally; production PostgreSQL verification
-belongs to the separately authorized deployment.
+Local development without systemd uses Alembic directly against a disposable test database. Database tests require Docker and use Testcontainers with `postgres:17`, matching the deployed major version. Each pytest worker reuses a container, each test has an isolated database, and service calls use independent connections and transactions. Alembic initializes the test schema; migration coverage checks upgrade, ORM metadata agreement and downgrade. Live deployment remains a separately authorized operation.
 
 If you plan to run the public ChatGPT-facing MCP service, also configure the
 OAuth variables documented in `.env.example` before running setup with

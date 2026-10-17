@@ -11,7 +11,6 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
-from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from backplane.context.database import AsyncSessionFactory, context_session_factory
 from backplane.context.schemas import (
@@ -66,33 +65,6 @@ _POLICY_ALLOWED_PROMPT_STATUSES = frozenset(
 )
 
 
-def _aware(value: dt.datetime | None) -> dt.datetime | None:
-    """Normalize SQLite-returned naive UTC values for portable tests.
-
-    Returns:
-        A timezone-aware value, or ``None`` when the input is null.
-    """
-    if value is None or value.tzinfo is not None:
-        return value
-    return value.replace(tzinfo=dt.UTC)
-
-
-def aware_timestamp(value: dt.datetime) -> dt.datetime:
-    """Normalize a required database timestamp.
-
-    Returns:
-        Timezone-aware timestamp.
-
-    Raises:
-        ValueError: If the required timestamp is unexpectedly null.
-    """
-    normalized = _aware(value)
-    if normalized is None:  # pragma: no cover - guarded by the type contract
-        msg = "Required timestamp was unexpectedly null."
-        raise ValueError(msg)
-    return normalized
-
-
 class ContextCaptureService:
     """Shared service behind context REST and MCP adapters."""
 
@@ -112,8 +84,8 @@ class ContextCaptureService:
             correlation_key=row.correlation_key,
             idempotency_key=row.idempotency_key,
             kind=row.kind,
-            occurred_at=aware_timestamp(row.occurred_at),
-            ended_at=_aware(row.ended_at),
+            occurred_at=row.occurred_at,
+            ended_at=row.ended_at,
             timezone=row.timezone,
             confidence=row.confidence,
             privacy_class=PrivacyClass(row.privacy_class),
@@ -122,8 +94,8 @@ class ContextCaptureService:
             payload=row.payload,
             provenance=row.provenance,
             supersedes_event_id=row.supersedes_event_id,
-            created_at=aware_timestamp(row.created_at),
-            updated_at=aware_timestamp(row.updated_at),
+            created_at=row.created_at,
+            updated_at=row.updated_at,
         )
 
     @staticmethod
@@ -135,8 +107,8 @@ class ContextCaptureService:
             context_prompt_limit=row.context_prompt_limit,
             cooldown_seconds=row.cooldown_seconds,
             minimum_event_confidence=row.minimum_event_confidence,
-            created_at=aware_timestamp(row.created_at),
-            updated_at=aware_timestamp(row.updated_at),
+            created_at=row.created_at,
+            updated_at=row.updated_at,
         )
 
     @staticmethod
@@ -158,8 +130,8 @@ class ContextCaptureService:
                 id=change.id,
                 prompt_id=change.prompt_id,
                 status=CapturePromptStatus(change.status),
-                occurred_at=aware_timestamp(change.occurred_at),
-                recorded_at=aware_timestamp(change.recorded_at),
+                occurred_at=change.occurred_at,
+                recorded_at=change.recorded_at,
                 reason=change.reason,
             )
             for change in (
@@ -187,20 +159,20 @@ class ContextCaptureService:
             wording=row.wording,
             status=CapturePromptStatus(row.status),
             decision_reason=CaptureDecisionReason(row.decision_reason),
-            scheduled_for=_aware(row.scheduled_for),
-            expires_at=_aware(row.expires_at),
-            delivered_at=_aware(row.delivered_at),
-            responded_at=_aware(row.responded_at),
-            dismissed_at=_aware(row.dismissed_at),
+            scheduled_for=row.scheduled_for,
+            expires_at=row.expires_at,
+            delivered_at=row.delivered_at,
+            responded_at=row.responded_at,
+            dismissed_at=row.dismissed_at,
             dismissal_reason=row.dismissal_reason,
-            expired_at=_aware(row.expired_at),
+            expired_at=row.expired_at,
             expiration_reason=row.expiration_reason,
-            cancelled_at=_aware(row.cancelled_at),
+            cancelled_at=row.cancelled_at,
             cancellation_reason=row.cancellation_reason,
             delivery_context=row.delivery_context,
             provenance=row.provenance,
-            created_at=aware_timestamp(row.created_at),
-            updated_at=aware_timestamp(row.updated_at),
+            created_at=row.created_at,
+            updated_at=row.updated_at,
         )
 
     @staticmethod
@@ -214,8 +186,8 @@ class ContextCaptureService:
             payload=row.payload,
             response_context=row.response_context,
             provenance=row.provenance,
-            responded_at=aware_timestamp(row.responded_at),
-            created_at=aware_timestamp(row.created_at),
+            responded_at=row.responded_at,
+            created_at=row.created_at,
         )
 
     @staticmethod
@@ -292,20 +264,9 @@ class ContextCaptureService:
             "provenance": request.provenance,
             "supersedes_event_id": request.supersedes_event_id,
         }
-        dialect_name = session.get_bind().dialect.name
-        if dialect_name == "postgresql":
-            statement = (
-                postgresql_insert(ContextEventRow)
-                .values(**values)
-                .on_conflict_do_nothing()
-            )
-        elif dialect_name == "sqlite":
-            statement = (
-                sqlite_insert(ContextEventRow).values(**values).on_conflict_do_nothing()
-            )
-        else:
-            msg = f"Unsupported context database dialect {dialect_name!r}."
-            raise exc.InternalServerError(message=msg)
+        statement = (
+            postgresql_insert(ContextEventRow).values(**values).on_conflict_do_nothing()
+        )
         _ = await session.execute(statement)
         persisted = await self._existing_event(session, request)
         if persisted is None:
@@ -385,22 +346,11 @@ class ContextCaptureService:
             "cooldown_seconds": 5400,
             "minimum_event_confidence": 0.7,
         }
-        dialect_name = session.get_bind().dialect.name
-        if dialect_name == "postgresql":
-            _ = await session.execute(
-                postgresql_insert(CapturePolicyRow)
-                .values(**values)
-                .on_conflict_do_nothing(index_elements=["user_id"]),
-            )
-        elif dialect_name == "sqlite":
-            _ = await session.execute(
-                sqlite_insert(CapturePolicyRow)
-                .values(**values)
-                .on_conflict_do_nothing(index_elements=["user_id"]),
-            )
-        elif await session.get(CapturePolicyRow, user_id) is None:
-            session.add(CapturePolicyRow(**values))
-            await session.flush()
+        _ = await session.execute(
+            postgresql_insert(CapturePolicyRow)
+            .values(**values)
+            .on_conflict_do_nothing(index_elements=["user_id"]),
+        )
 
         statement = select(CapturePolicyRow).where(CapturePolicyRow.user_id == user_id)
         if lock:
@@ -598,11 +548,8 @@ class ContextCaptureService:
         candidate = proposed
         cooldown = dt.timedelta(seconds=policy.cooldown_seconds)
         for reference in references:
-            reference_aware = _aware(reference)
-            if reference_aware is None:
-                continue
-            if abs(candidate - reference_aware) < cooldown:
-                candidate = reference_aware + cooldown
+            if abs(candidate - reference) < cooldown:
+                candidate = reference + cooldown
         return candidate
 
     @staticmethod
@@ -771,20 +718,9 @@ class ContextCaptureService:
         prompt_id: uuid.UUID,
         values: dict[str, object],
     ) -> tuple[CapturePromptRow, bool]:
-        dialect_name = session.get_bind().dialect.name
-        if dialect_name == "postgresql":
-            statement = (
-                postgresql_insert(CapturePromptRow)
-                .values(**values)
-                .on_conflict_do_nothing()
-            )
-        elif dialect_name == "sqlite":
-            statement = (
-                sqlite_insert(CapturePromptRow).values(**values).on_conflict_do_nothing()
-            )
-        else:
-            msg = f"Unsupported context database dialect {dialect_name!r}."
-            raise exc.InternalServerError(message=msg)
+        statement = (
+            postgresql_insert(CapturePromptRow).values(**values).on_conflict_do_nothing()
+        )
         _ = await session.execute(statement)
         row = await self._existing_prompt(session, request)
         if row is None:

@@ -26,7 +26,7 @@ from backplane.context.tables import (
     CapturePromptRow,
     CaptureResponseRow,
 )
-from backplane.services.context_capture import ContextCaptureService, aware_timestamp
+from backplane.services.context_capture import ContextCaptureService
 from backplane.services.ideas import IdeaCapture, IdeaService
 from backplane.utils import (
     SETTINGS,
@@ -112,9 +112,7 @@ class IdeaFollowupService(ContextCaptureService):
                     )
                 ).all(),
             )
-            if any(
-                now - aware_timestamp(prompt.created_at) < _CADENCE for prompt in prompts
-            ):
+            if any(now - prompt.created_at < _CADENCE for prompt in prompts):
                 return None
 
             capture = await self._candidate(session, captures, prompts, now)
@@ -250,7 +248,7 @@ class IdeaFollowupService(ContextCaptureService):
             if (
                 latest.status == CapturePromptStatus.RESPONDED.value
                 and snooze is not None
-                and now >= aware_timestamp(snooze.responded_at) + _CADENCE
+                and now >= snooze.responded_at + _CADENCE
                 and not any(
                     response.response_kind == "elaboration" for response in responses
                 )
