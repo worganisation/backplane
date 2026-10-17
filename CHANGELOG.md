@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.10.0 (2026-10-17)
+
+### Features
+
+- Add a dedicated Ollama capture assistant
+  ([#124](https://github.com/worganisation/backplane/pull/124),
+  [`6a9d03c`](https://github.com/worganisation/backplane/commit/6a9d03c8f776e3833b574a331299422d46cbc881))
+
+
 ## v0.9.0 (2026-10-17)
 
 ### Chores
