@@ -33,7 +33,8 @@ Preserve the user's wording and any stated event time; never invent an event tim
 Use the requested date for past entries, or today when no date is specified.
 
 For other captures where the target section is unknown or ambiguous, call `get_daily_note`
-first to inspect the note's headings. If a section lookup fails, the error includes available sections at that level.
+first to inspect the note's headings. If a section lookup fails, the error includes
+available sections at that level.
 
 If the user explicitly asks for another section, create it with `create_section_if_not_exists=true`.
 If a section is missing and the tool returns available sections, retry with the closest
