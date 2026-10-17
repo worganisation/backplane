@@ -20,10 +20,11 @@ if TYPE_CHECKING:
     from fastmcp import FastMCP
 
 _CANDIDATE_SNIPPET_MAX_LEN = 80
-_CREATE_TASK_DESCRIPTION = """Create a structured Obsidian task note for an actionable item.
+_CREATE_TASK_DESCRIPTION = """Create an enriched Obsidian task with model-extracted metadata and entity links.
 
-Use when the user says they need to do something, wants something on their list, asks to make a
-task, or uses phrasing like "I should…", "I need to…", "remind me to…", or "add this to my list".
+Use when metadata enrichment or linking a confirmed prior idea is requested.
+For ordinary actions to remember ("I need to", "I should", "add a task"), prefer
+`capture_task`, which saves immediately without another model call.
 
 Do not use for speculative ideas. Use `record_idea` for loose "maybe / could / worth
 investigating" captures unless the user explicitly wants to turn the idea into a task.
@@ -183,6 +184,49 @@ async def link_task_to_capture(
     return response
 
 
+async def capture_task(
+    description: Annotated[
+        str,
+        Field(min_length=1, description="Full original action to remember."),
+    ],
+    title: Annotated[
+        str | None,
+        Field(description="Optional short title; omit if not supplied."),
+    ] = None,
+    due: Annotated[
+        str | None,
+        Field(description="Explicit YYYY-MM-DD deadline only."),
+    ] = None,
+    priority: enums.Priority | None = None,
+    idempotency_key: Annotated[
+        str | None,
+        Field(
+            min_length=1,
+            description="Stable operation key; reuse unchanged input on retry.",
+        ),
+    ] = None,
+) -> TaskCreationOutcome:
+    """Quickly save an action to do as a task and add its board card, without calling another model.
+
+    Prefer for voice capture: 'I need to', 'I should', or 'add a task'. No project is required.
+    Preserves original text; does not infer entity links or schedule reminders or later enrichment.
+    Use create_task only when metadata enrichment or a confirmed idea link is requested.
+    Reuse the same idempotency_key and fields on retries; report any returned warnings.
+
+    Returns:
+        The saved task and any warnings about its board card.
+    """
+    task = await TaskService().create_task(
+        description,
+        title=title,
+        due=due,
+        priority=priority,
+        idempotency_key=idempotency_key,
+        enrich_metadata=False,
+    )
+    return task_creation_outcome(task)
+
+
 def register_task_tools(mcp: FastMCP[None], *, require_oauth: bool = False) -> None:
     """Register task tools on a FastMCP server instance."""
     auth_kwargs: OAuthToolRegistrationKwargs = {}
@@ -190,6 +234,7 @@ def register_task_tools(mcp: FastMCP[None], *, require_oauth: bool = False) -> N
         auth_kwargs = oauth_tool_registration_kwargs()
 
     _ = mcp.tool(description=_CREATE_TASK_DESCRIPTION, **auth_kwargs)(create_task)
+    _ = mcp.tool(**auth_kwargs)(capture_task)
     _ = mcp.tool(description=_LINK_TASK_TO_CAPTURE_DESCRIPTION, **auth_kwargs)(
         link_task_to_capture,
     )

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import uuid  # ruff:ignore[typing-only-standard-library-import] -- FastMCP inspects runtime annotations.
+import uuid  # ruff:ignore[typing-only-standard-library-import] -- MCP resolves annotations at runtime.
 from typing import TYPE_CHECKING
 
 from backplane.mcp.auth import OAuthToolRegistrationKwargs, oauth_tool_registration_kwargs
@@ -34,7 +34,8 @@ async def save_idea_elaboration(prompt_id: uuid.UUID, capture_id: str, text: str
 
     Preserve the user's wording. This stores development notes, not a commitment.
     Create a project or task only when the user explicitly asks to commit to it.
-    For tasks use create_task(link_capture_id=capture_id); projectless tasks are valid.
+    For tasks use capture_task then link_task_to_capture with its task filename stem and
+    this capture_id. This avoids model enrichment; projectless tasks are valid.
     For a project, include the original idea wikilink and this development note in
     its Overview using create_vault_entity/update_vault_entity.
 

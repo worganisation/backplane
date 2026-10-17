@@ -13,15 +13,17 @@ from backplane.context.schemas import (
     CapturePromptDeliveryRequest,
     CapturePromptDismissRequest,
 )
+from backplane.mcp.tasks import capture_task, link_task_to_capture
 from backplane.services.idea_followup import (
     FollowupAvailability,
     IdeaElaboration,
     IdeaFollowupService,
 )
 from backplane.services.ideas import IdeaService
-from backplane.utils import exc, resolve_under_root
+from backplane.utils import VAULT_PATHS, exc, resolve_under_root
 
 if TYPE_CHECKING:
+    from pytest_mock import MockerFixture
     from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
     from backplane.utils import AsyncPath
@@ -191,3 +193,35 @@ async def test_snooze_recovers_missed_submission_callback(
     submitted = await followups.mark_submitted(first.prompt.id)
     assert submitted.delivery_context["receipt_confirmed"] is False
     assert await followups.reserve(AVAILABLE) is None
+
+
+async def test_commit_to_projectless_task_without_model(
+    followups: IdeaFollowupService,
+    mocker: MockerFixture,
+) -> None:
+    """Explicit commitment uses fast capture then an exact link without inference."""
+    extraction = mocker.patch("backplane.services.tasks._extract_metadata")
+    board = await resolve_under_root(VAULT_PATHS.task_board_path)
+    await board.parent.mkdir(parents=True, exist_ok=True)
+    _ = await board.write_text("## Backlog\n\n")
+
+    idea = await IdeaService.record("Maybe build a greenhouse sensor")
+    first = await followups.reserve(AVAILABLE)
+    assert first is not None
+    _ = await followups.mark_submitted(first.prompt.id)
+    _ = await followups.elaborate(
+        first.prompt.id,
+        IdeaElaboration(capture_id=idea.id, text="Build one outdoor temperature probe."),
+    )
+
+    task = await capture_task(
+        description="Build one outdoor temperature probe.",
+        idempotency_key="commit-probe",
+    )
+    _ = await link_task_to_capture(task_slug=task.metadata.path.stem, capture_id=idea.id)
+    extraction.assert_not_called()
+
+    stored = await (await resolve_under_root(task.metadata.path)).read_text()
+    assert f"source_capture: {idea.id}" in stored
+    assert "Build one outdoor temperature probe." in stored
+    assert (await IdeaService.get_idea(idea.id)).text == idea.text

@@ -20,7 +20,7 @@ Say “Let's develop the idea from my notification.” The agent calls `get_idea
 
 `save_idea_elaboration` stores the user's wording as an immutable context response and writes one Markdown note in `Inbox/Idea development/<capture_id>/<response_id>.md`, linked to the original idea. Identical text on the same prompt is idempotent. If the vault write fails after the database save, retrying repairs the export without duplicating the response. The tool confirms success only when the export succeeds.
 
-Developing an idea does not create a commitment. When explicitly requested, use the existing `create_task` tool with `link_capture_id`; omit the project when none applies. Use `create_vault_entity` for an explicitly requested project and place the original idea and development-note links in its Overview. Keep speculation in the development note.
+Developing an idea does not create a commitment. When explicitly requested, use `capture_task` followed by `link_task_to_capture` with the returned task metadata filename without its final `.md` extension and the original capture ID. This saves a projectless task without a second model call. Reuse the same task idempotency key on retries; retry the linking step if it fails. Use `create_vault_entity` for an explicitly requested project and place the original idea and development-note links in its Overview. Keep speculation in the development note.
 
 ## Configuration and verification
 

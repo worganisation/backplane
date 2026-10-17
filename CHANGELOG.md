@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.8.5 (2026-10-17)
+
+### Bug Fixes
+
+- Save voice captures without metadata inference
+  ([#123](https://github.com/worganisation/backplane/pull/123),
+  [`58a62f3`](https://github.com/worganisation/backplane/commit/58a62f38a8c0e1ed9de9dcec99744b74af690c2c))
+
+
 ## v0.8.4 (2026-10-17)
 
 ### Bug Fixes
