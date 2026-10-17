@@ -8,7 +8,8 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from backplane.operations.daily_notes import read_daily_note, record_diary
+from backplane.mcp.obsidian import record_diary
+from backplane.operations.daily_notes import read_daily_note
 from backplane.utils import SETTINGS, exc
 
 if TYPE_CHECKING:

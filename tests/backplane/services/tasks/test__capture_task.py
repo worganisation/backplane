@@ -86,3 +86,25 @@ async def test__capture_task__reports_saved_note_when_board_fails(
     assert retried.replayed
     assert retried.metadata.path == saved.metadata.path
     assert not retried.warnings
+
+
+@pytest.mark.parametrize(
+    ("description", "title", "link_capture_id"),
+    [("  ", None, None), ("Check battery", "  ", None), ("Check battery", None, "idea-1")],
+)
+async def test__capture_task__rejects_invalid_input_before_writing(
+    obsidian_vault: AsyncPath,
+    description: str,
+    title: str | None,
+    link_capture_id: str | None,
+) -> None:
+    """Blank tasks and unsupported capture linking never create a task note."""
+    with pytest.raises(exc.BadRequestError):
+        _ = await TaskService.create_task(
+            description,
+            title=title,
+            link_capture_id=link_capture_id,
+            enrich_metadata=False,
+        )
+
+    assert not await (obsidian_vault / VAULT_PATHS.task_notes_dir).exists()
