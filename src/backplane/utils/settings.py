@@ -7,7 +7,14 @@ import zoneinfo
 from typing import Annotated, ClassVar, Final, Self, cast, final
 
 import yarl
-from pydantic import AnyHttpUrl, BeforeValidator, Field, field_validator, model_validator
+from pydantic import (
+    AnyHttpUrl,
+    BeforeValidator,
+    Field,
+    SecretStr,
+    field_validator,
+    model_validator,
+)
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 from .async_path import AsyncPath
@@ -75,6 +82,33 @@ class Settings(BaseSettings):
             ),
         ),
     ] = zoneinfo.ZoneInfo("Europe/London")
+
+    # ========================================================================
+    # Canonical context capture
+
+    context_database_url: Annotated[
+        SecretStr | None,
+        Field(
+            description=(
+                "SQLAlchemy async database URL for the context ledger, e.g. "
+                "postgresql+asyncpg://user:password@postgres/backplane."
+            ),
+        ),
+    ] = None
+
+    context_api_token: Annotated[
+        SecretStr | None,
+        Field(
+            description=(
+                "Bearer token required by every sensitive context REST endpoint."
+            ),
+        ),
+    ] = None
+
+    context_database_echo: Annotated[
+        bool,
+        Field(description="Whether to log SQL emitted by the context persistence layer."),
+    ] = False
 
     # ========================================================================
     # Home Assistant

@@ -27,6 +27,9 @@ dependencies = [
     "uvicorn>=0.53.0",
     "uvloop>=0.22.1",
     "mdformat-wikilink>=0.3.0",
+    "sqlalchemy[asyncio]>=2.0.48",
+    "asyncpg>=0.31.0",
+    "alembic>=1.18.0",
 ]
 
 [dependency-groups]
@@ -40,6 +43,7 @@ dev = [
     "pytest-mock>=3.15.1",
     "pytest-randomly>=5.0.0",
     "pytest-xdist>=3.8.0",
+    "testcontainers[postgres]>=4.15.0",
 ]
 
 [tool.pytest.ini_options]

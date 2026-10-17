@@ -5,6 +5,9 @@ from __future__ import annotations
 BACKPLANE_MCP_INSTRUCTIONS = """Backplane manages the user's Obsidian vault.
 
 Tool routing:
+- When the user refers to an idea notification, call `get_idea_followup` to retrieve
+  its exact idea and prompt IDs. Save elaboration with `save_idea_elaboration`;
+  do not record it as a new idea or create tasks/projects without explicit commitment.
 - Use `record_diary` for personal experiences and completed activities; it adds the capture timestamp.
 - Use `add_to_daily_note` for a different daily-note section explicitly requested by the user.
 - Use `capture_task` for actionable things the user needs, wants, or intends to do, without model enrichment.
