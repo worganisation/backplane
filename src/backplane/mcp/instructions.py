@@ -5,8 +5,10 @@ from __future__ import annotations
 BACKPLANE_MCP_INSTRUCTIONS = """Backplane manages the user's Obsidian vault.
 
 Tool routing:
-- Use `add_to_daily_note` when the user wants to capture something in today's note or a daily-note section.
-- Use `create_task` for actionable things the user needs, wants, or intends to do.
+- Use `record_diary` for personal experiences and completed activities; it adds the capture timestamp.
+- Use `add_to_daily_note` for a different daily-note section explicitly requested by the user.
+- Use `capture_task` for actionable things the user needs, wants, or intends to do, without model enrichment.
+- Use `create_task` when metadata enrichment or a confirmed prior idea link is requested.
 - Use `record_idea` for loose, speculative, non-committal ideas.
 - Use `list_ideas` to browse captures and `get_idea` to read a stable capture ID.
   Legacy minute groups can contain several ideas.

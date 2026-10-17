@@ -28,8 +28,8 @@ _ADD_DESCRIPTION = """Add content to a section of the user's Obsidian daily note
 
 Use when the user wants to capture something "today", "in my daily note", or into a daily-note section.
 
-For personal diary entries without a named section, use heading_path=["Diary"],
-mode="append", and create_section_if_not_exists=true. Do not read the note first for this default.
+For personal diary entries without a named section, prefer `record_diary`, which adds
+the capture timestamp and appends to Diary without reading first.
 Preserve the user's wording and any stated event time; never invent an event time.
 Use the requested date for past entries, or today when no date is specified.
 
@@ -57,7 +57,7 @@ Use for speculative captures such as:
 
 Do not use this for tasks or action items. If the user says they need to do something, should do
 something, wants to remember to act on something, or asks for a task/reminder/list item,
-use `create_task`.
+use `capture_task`. Use `create_task` only for requested metadata enrichment or a confirmed idea link.
 
 Convert spoken phrasing to a written sentence while preserving the user's wording as closely as possible."""
 

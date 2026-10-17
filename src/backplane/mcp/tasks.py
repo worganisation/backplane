@@ -20,10 +20,11 @@ if TYPE_CHECKING:
     from fastmcp import FastMCP
 
 _CANDIDATE_SNIPPET_MAX_LEN = 80
-_CREATE_TASK_DESCRIPTION = """Create a structured Obsidian task note for an actionable item.
+_CREATE_TASK_DESCRIPTION = """Create an enriched Obsidian task with model-extracted metadata and entity links.
 
-Use when the user says they need to do something, wants something on their list, asks to make a
-task, or uses phrasing like "I should…", "I need to…", "remind me to…", or "add this to my list".
+Use when metadata enrichment or linking a confirmed prior idea is requested.
+For ordinary actions to remember ("I need to", "I should", "add a task"), prefer
+`capture_task`, which saves immediately without another model call.
 
 Do not use for speculative ideas. Use `record_idea` for loose "maybe / could / worth
 investigating" captures unless the user explicitly wants to turn the idea into a task.
