@@ -98,7 +98,13 @@ setup log_dir="/var/log/backplane":
 deploy tag:
     git fetch --tags origin
     git reset --hard {{ tag }}
+    just _deploy-current
+
+# Apply the checked-out release and its public application configuration
+[private]
+_deploy-current:
     uv sync --frozen --no-dev
+    bash deploy/configure-runtime.sh
     just _mcp-restart
     if systemctl is-enabled backplane-public.service &>/dev/null; then just _mcp-public-restart; fi
 

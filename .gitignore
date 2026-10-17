@@ -316,3 +316,6 @@ next-env.d.ts
 
 # Renovate repository policy
 !/renovate.json
+
+# Versioned public deployment settings
+!/deploy/runtime.env
