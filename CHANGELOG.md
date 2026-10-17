@@ -2,6 +2,24 @@
 
 <!-- version list -->
 
+## v0.9.0 (2026-10-17)
+
+### Chores
+
+- **deps**: Bump the uv-security-dependencies group across 1 directory with 3 updates
+  ([#120](https://github.com/worganisation/backplane/pull/120),
+  [`d44f5a5`](https://github.com/worganisation/backplane/commit/d44f5a504975335d83cf5bc8e2d592a2614c118c))
+
+- **deps**: Update dependency pydantic-ai to v2.53.0 [security] - abandoned
+  ([#119](https://github.com/worganisation/backplane/pull/119),
+  [`86b0e99`](https://github.com/worganisation/backplane/commit/86b0e99d0b8a6c184e76c2be9aaf7e4a27e2afb7))
+
+### Features
+
+- Add contextual idea follow-ups ([#77](https://github.com/worganisation/backplane/pull/77),
+  [`766e047`](https://github.com/worganisation/backplane/commit/766e0470d4f3e840924339abbe2c94b0e068345f))
+
+
 ## v0.8.5 (2026-10-17)
 
 ### Bug Fixes
