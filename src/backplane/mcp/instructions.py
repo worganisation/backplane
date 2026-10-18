@@ -18,8 +18,8 @@ Tool routing:
 - Use `add_to_daily_note` for a different daily-note section explicitly requested by the user.
 - Use `update_task` for explicit status or project changes by stable task ID; report board warnings.
 - Use `list_tasks` to browse tasks by project/status, and `get_task` to retrieve an exact stable task ID.
-- Use `capture_task` for actionable things the user needs, wants, or intends to do, without model enrichment.
-- Use `create_task` when metadata enrichment or a confirmed prior idea link is requested.
+- Use `capture_task` for actions without model enrichment; pass an exact idea ID for explicit promotion.
+- Use `create_task` only when metadata enrichment is requested.
 - Use `record_idea` for loose, speculative, non-committal ideas.
 - Use `list_ideas` to browse captures and `get_idea` to read a stable capture ID.
   Legacy minute groups can contain several ideas.

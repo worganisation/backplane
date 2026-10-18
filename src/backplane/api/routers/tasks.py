@@ -30,6 +30,25 @@ async def create_task(request: CreateTaskRequest) -> CreateTaskResponse:
     Returns:
         Created task response.
     """
+    return await _create_task_response(request, enrich_metadata=True)
+
+
+@router.post(
+    "/obsidian/tasks/capture",
+    response_model=CreateTaskResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def capture_task(request: CreateTaskRequest) -> CreateTaskResponse:
+    """Return a fast task capture, optionally promoting an exact individual idea."""
+    return await _create_task_response(request, enrich_metadata=False)
+
+
+async def _create_task_response(
+    request: CreateTaskRequest,
+    *,
+    enrich_metadata: bool,
+) -> CreateTaskResponse:
+    """Return the shared task result without coupling transport adapters."""
     task = await TaskService().create_task(
         request.description,
         title=request.title,
@@ -38,6 +57,7 @@ async def create_task(request: CreateTaskRequest) -> CreateTaskResponse:
         link_capture_id=request.link_capture_id,
         idempotency_key=request.idempotency_key,
         project=request.project,
+        enrich_metadata=enrich_metadata,
     )
     outcome = task_creation_outcome(task)
     return CreateTaskResponse.model_validate(

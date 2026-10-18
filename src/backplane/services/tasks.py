@@ -1246,6 +1246,30 @@ async def _canonical_project(project: str) -> str:
     )
 
 
+async def _plain_capture_selection(capture_id: str | None) -> MatchOutcome:
+    """Validate explicitly selected provenance without fuzzy matching or inference.
+
+    Returns:
+        The exact individual idea, or no selection when the ID is omitted.
+
+    Raises:
+        NotFoundError: The requested capture does not exist.
+        BadRequestError: A legacy group cannot identify one idea for promotion.
+    """
+    if capture_id is None:
+        return MatchOutcome(matched=None, candidates=[])
+
+    capture = _find_capture_by_id(await _load_all_captures(), capture_id)
+    if capture is None:
+        raise exc.NotFoundError(message=f"Capture {capture_id!r} not found.")
+    if capture.kind != "idea":
+        raise exc.BadRequestError(
+            message="Choose an individual idea, not a legacy group.",
+        )
+
+    return MatchOutcome(matched=capture, candidates=[])
+
+
 @final
 class TaskService:
     """Service for creating structured task notes."""
@@ -1290,10 +1314,6 @@ class TaskService:
             msg = "idempotency_key must not be blank."
             raise exc.BadRequestError(msg)
 
-        if not enrich_metadata and link_capture_id is not None:
-            msg = "Plain task capture does not accept a linked capture."
-            raise exc.BadRequestError(msg)
-
         if not enrich_metadata and (
             not description.strip() or (title is not None and not title.strip())
         ):
@@ -1334,7 +1354,7 @@ class TaskService:
                 fallback_description=description,
             )
         else:
-            capture_selection = MatchOutcome(matched=None, candidates=[])
+            capture_selection = await _plain_capture_selection(link_capture_id)
             metadata = TaskMetadata(
                 title=title or description.strip()[:60],
                 priority=priority or enums.Priority.MEDIUM,
