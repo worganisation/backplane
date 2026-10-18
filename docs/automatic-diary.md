@@ -20,6 +20,12 @@ After 20:30, a successful refresh can reserve one daily review when Will is home
 
 Notification replies carry the exact prompt ID to the configured general assistant with the Backplane LLM API and [`assist-prompt.jinja`](../deploy/assist-prompt.jinja). `get_diary_review` returns the exact notification snapshot and prior responses; `save_diary_review` records explicit decisions and verbatim additions, then regenerates the note and narrative. Reply actions preserve the returned conversation ID for clarification turns. The notification tap opens the selected general pipeline as a separate conversation; Android cannot pass notification context through the native Assist intent. The three-tool Capture pipeline does not expose these review tools. General-agent prompt configuration uses HA's supported configuration flow, as described in [voice capture](voice-capture.md).
 
+## Automation observations
+
+Authenticated `POST /api/diary/observations` and `record_diary_observation` accept `source`, `idempotency_key`, timezone-aware `occurred_at`, exact `text` and `certainty` (`candidate` or `confirmed`). Each producer retains its operation key and identical input for retries. Camera/location guesses remain candidates; confirmation requires explicit user confirmation or a directly established fact. The source and certainty remain visible in both the ledger and the note.
+
+Observations are committed to PostgreSQL before a retryable export into the owned `Recorded activities` daily-note section. Their diary date uses Europe/London time. Automatic source refreshes replace only `Automatic diary`, preserving these activities. `get_diary_day` includes them even without an automatic snapshot; quantitative summaries describe automatic snapshot coverage. An observation does not send a notification, infer attendance, create a task or generate prose. Producers must not treat an inferred dog walk as confirmed.
+
 ## Looking back
 
 Collected snapshots preserve numeric mood scores and habit completion counts alongside their original display text. Period summaries report mood sample counts and covered days; an empty covered day has no mood average. Habit summaries identify stable sensor sources, count completion days and preserve recorded zeroes. Older snapshots without structured tracking remain missing for these aggregates. Obsidian properties `diary_mood_samples`, `diary_mood_average` and `diary_habit_counts` expose the same observations without parsing prose.

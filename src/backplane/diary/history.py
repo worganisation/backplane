@@ -10,6 +10,7 @@ from sqlalchemy import select
 from backplane.context.schemas import ContextEventStatus
 from backplane.context.tables import ContextEventRow
 from backplane.diary.models import DiaryEntry, DiarySnapshot, HabitMeasurement
+from backplane.diary.observations import DiaryObservation, DiaryObservationService
 from backplane.diary.render import reviewed_entries
 from backplane.diary.service import DiaryService
 from backplane.utils import exc, today
@@ -29,6 +30,7 @@ class DiaryDay(BaseModel):
     partial_day: bool
     mood_scores: list[float] | None
     habits: dict[str, HabitMeasurement]
+    observations: list[DiaryObservation] = Field(default_factory=list)
 
 
 class MoodSummary(BaseModel):
@@ -81,11 +83,19 @@ class DiaryHistoryService(DiaryService):
 
     async def get_day(self, date: dt.date) -> DiaryDay | None:
         """Return the latest collected day, or null when no snapshot exists."""
+        observations = await DiaryObservationService(self._session_factory).list_day(date)
         async with self._session_factory() as session:
             if (row := await self._latest(session, date, "diary_snapshot")) is None:
-                return None
+                if not observations:
+                    return None
+                snapshot = DiarySnapshot(
+                    date=date,
+                    collected_at=max(o.occurred_at for o in observations),
+                    missing=["Automatic diary sources have not been collected"],
+                )
+            else:
+                snapshot = DiarySnapshot.model_validate(row.payload)
 
-            snapshot = DiarySnapshot.model_validate(row.payload)
             responses = await self._responses(session, date)
 
         return DiaryDay(
@@ -98,6 +108,7 @@ class DiaryHistoryService(DiaryService):
             partial_day=date >= today(),
             mood_scores=snapshot.mood_scores,
             habits=snapshot.habits,
+            observations=observations,
         )
 
     async def summarize(self, start: dt.date, end: dt.date) -> DiaryPeriod:
