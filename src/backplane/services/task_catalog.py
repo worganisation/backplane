@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import datetime as dt
 import re
 from typing import TYPE_CHECKING, Annotated, Final
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, TypeAdapter, ValidationError
+from ruamel.yaml.error import YAMLError
 
 from backplane.utils import VAULT_PATHS, YAML_LOADER, AsyncPath, exc, resolve_under_root
 from backplane.utils.markdown import note_title_from_markdown
@@ -48,7 +50,16 @@ async def read_task(path: AsyncPath) -> TaskRecord | None:
     if (header := _FRONTMATTER.match(raw)) is None:
         return None
 
-    metadata: dict[str, object] = YAML_LOADER.load(header[1]) or {}  # pyright: ignore[reportUnknownMemberType]
+    try:
+        loaded: object = YAML_LOADER.load(header[1]) or {}  # pyright: ignore[reportUnknownMemberType]
+        values = TypeAdapter(dict[str, object]).validate_python(loaded)
+    except (ValidationError, YAMLError) as error:
+        raise exc.UserError(message=f"Invalid task metadata in {path}.") from error
+
+    metadata = {
+        key: value.isoformat() if isinstance(value, (dt.date, dt.datetime)) else value
+        for key, value in values.items()
+    }
     if metadata.get("type") != "task":
         return None
 
