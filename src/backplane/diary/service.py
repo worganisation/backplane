@@ -318,6 +318,19 @@ class DiaryService(ContextCaptureService):
                 responses=[],
             )
 
+    async def get_review_for_date(self, date: dt.date) -> DiaryReview | None:
+        """Return the existing exact review for a date without creating a notification."""
+        async with self._session_factory() as session:
+            prompt_id = await session.scalar(
+                select(CapturePromptRow.id).where(
+                    CapturePromptRow.source == _SOURCE,
+                    CapturePromptRow.user_id == _USER,
+                    CapturePromptRow.idempotency_key == date.isoformat(),
+                ),
+            )
+
+        return await self.get_review(prompt_id) if prompt_id is not None else None
+
     async def get_review(self, prompt_id: uuid.UUID | None = None) -> DiaryReview | None:
         """Read the exact notification snapshot, never silently select another day's data.
 

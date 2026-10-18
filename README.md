@@ -465,6 +465,21 @@ Returns:
 | --- | --- | --- | --- | --- |
 | `prompt_id` | `string`? | no | `null` |  |
 
+#### `get_diary_review_for_date`
+
+Find an existing review for the requested day, never substitute the latest prompt.
+
+Use the returned prompt and entry IDs for explicit corrections. A null result
+means no review exists for that day; this tool creates no notification. Inspect
+prompt status before saving: dismissed or otherwise inactive reviews cannot save.
+
+Returns:
+    Original notification snapshot and prior responses, or null.
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `date` | `date` (YYYY-MM-DD) | yes | — |  |
+
 #### `get_idea`
 
 Read the original capture text by stable idea ID or legacy date/minute ID.
