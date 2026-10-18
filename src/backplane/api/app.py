@@ -14,6 +14,7 @@ from backplane.api.routers import (
     health,
     idea_followup,
     notes,
+    review_submissions,
     search,
     tasks,
 )
@@ -36,6 +37,7 @@ def create_api_app() -> FastAPI:
         health.router,
         idea_followup.router,
         diary.router,
+        review_submissions.router,
         context_capture.router,
         daily_notes.router,
         notes.router,
