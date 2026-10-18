@@ -22,6 +22,8 @@ Notification replies carry the exact prompt ID to the configured general assista
 
 ## Looking back
 
+Collected snapshots preserve numeric mood scores and habit completion counts alongside their original display text. Period summaries report mood sample counts and covered days; an empty covered day has no mood average. Habit summaries identify stable sensor sources, count completion days and preserve recorded zeroes. Older snapshots without structured tracking remain missing for these aggregates. Obsidian properties `diary_mood_samples`, `diary_mood_average` and `diary_habit_counts` expose the same observations without parsing prose.
+
 `get_diary_day(date)` and authenticated `GET /api/diary/days/{date}` read the latest collected automatic observations and explicit review notes without contacting Home Assistant or generating prose. A day with no collected snapshot returns null. Manual Diary and Journal sections remain available through `get_daily_note`.
 
 `summarize_diary_period(start, end)` and `GET /api/diary/summary` cover inclusive ranges of up to 366 days. They use current snapshot revisions, report missing dates and source gaps, and include observed-day coverage for each metric. Missing measurements are excluded from averages rather than counted as zero. Steps, distance and listening minutes are additive; weight has first/last and average values without a total. Current-day measurements are marked partial.
