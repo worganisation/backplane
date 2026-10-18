@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.12.0 (2026-10-18)
+
+### Features
+
+- Persist review replies with recoverable delivery
+  ([#128](https://github.com/worganisation/backplane/pull/128),
+  [`c83afd2`](https://github.com/worganisation/backplane/commit/c83afd28b8594da569b0742aee450a87382f4789))
+
+
 ## v0.11.1 (2026-10-18)
 
 ### Bug Fixes
