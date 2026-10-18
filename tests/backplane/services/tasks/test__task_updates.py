@@ -81,7 +81,7 @@ async def test__board_failure_can_be_repaired_without_changing_completed_time(
     await board.parent.mkdir(parents=True, exist_ok=True)
     await board.write_text("## Done\n")
     failure = mocker.patch(
-        "backplane.services.task_updates._update_board",
+        "backplane.services.task_updates.reconcile_task_board",
         side_effect=OSError("unavailable"),
     )
     first = await update_task(task.id, TaskUpdate(status="done"))
@@ -125,3 +125,44 @@ async def test__rest_update_reports_saved_state(obsidian_vault: AsyncPath) -> No
     assert updated.task.completed is not None
     assert updated.warnings
     assert await (obsidian_vault / updated.task.path).exists()
+
+
+async def test__capture_replay_repairs_card_using_current_task_status(
+    obsidian_vault: AsyncPath,
+) -> None:
+    """Replaying an old capture cannot put a completed task back in Backlog."""
+    created = await TaskService.create_task(
+        "Task", idempotency_key="capture", enrich_metadata=False
+    )
+    task = (await list_tasks())[0]
+    completed = await update_task(task.id, TaskUpdate(status="done"))
+    assert completed.warnings
+    before = await (obsidian_vault / task.path).read_text()
+    board = obsidian_vault / VAULT_PATHS.task_board_path
+    await board.parent.mkdir(parents=True, exist_ok=True)
+    await board.write_text("## Backlog\n\n## Done\n")
+    replay = await TaskService.create_task(
+        "Task", idempotency_key="capture", enrich_metadata=False
+    )
+    assert replay.replayed
+    assert not replay.warnings
+    text = await board.read_text()
+    assert text.index(created.metadata.canonical_link) > text.index("## Done")
+    assert f"- [x] {created.metadata.canonical_link}" in text
+    assert await (obsidian_vault / task.path).read_text() == before
+
+
+async def test__native_yaml_timestamps_survive_lifecycle_updates(
+    obsidian_vault: AsyncPath,
+) -> None:
+    """Valid Obsidian-authored date and timestamp fields remain readable on update."""
+    path = obsidian_vault / VAULT_PATHS.task_notes_dir / "Native.md"
+    await path.parent.mkdir(parents=True)
+    await path.write_text(
+        "---\nid: task-native\ntype: task\nstatus: done\ndue: 2026-10-20\n"
+        "completed: 2026-10-18T12:30:00+01:00\nupdated: 2026-10-18T12:30:00+01:00\n"
+        "---\n# Native\n",
+    )
+    result = await update_task("task-native", TaskUpdate(status="backlog"))
+    assert result.task.due == "2026-10-20"
+    assert result.task.completed is None

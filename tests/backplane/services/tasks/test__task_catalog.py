@@ -83,3 +83,28 @@ async def test__rest_browsing_uses_same_identity_and_filters(
     assert len(tasks) == 1
     assert await get_task_route(tasks[0].id) == tasks[0]
     assert await (obsidian_vault / tasks[0].path).exists()
+
+
+@pytest.mark.parametrize("header", ["- not a mapping", "a scalar", "type: [invalid"])
+async def test__invalid_yaml_is_reported_as_a_domain_error(
+    obsidian_vault: AsyncPath,
+    header: str,
+) -> None:
+    """Broken frontmatter cannot leak an attribute/parser error from task discovery."""
+    path = obsidian_vault / VAULT_PATHS.task_notes_dir / "Broken.md"
+    await path.parent.mkdir(parents=True)
+    await path.write_text(f"---\n{header}\n---\n# Task\n")
+    with pytest.raises(exc.UserError, match="Invalid task metadata"):
+        await list_tasks()
+
+
+async def test__yaml_native_date_is_valid_task_metadata(
+    obsidian_vault: AsyncPath,
+) -> None:
+    """Obsidian-authored unquoted dates remain readable without rewriting the note."""
+    path = obsidian_vault / VAULT_PATHS.task_notes_dir / "Dated.md"
+    await path.parent.mkdir(parents=True)
+    text = "---\nid: task-dated\ntype: task\ndue: 2026-10-20\n---\n# Dated\n"
+    await path.write_text(text)
+    assert (await get_task("task-dated")).due == "2026-10-20"
+    assert await path.read_text() == text
