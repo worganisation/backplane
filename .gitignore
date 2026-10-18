@@ -9,6 +9,7 @@
 !basedpyright-tests.json
 !deploy/capture-assist.json
 !scripts/fixtures/readme-vault/.obsidian/daily-notes.json
+!scripts/fixtures/capture-evaluation.json
 *.xlsx
 *.xlsm
 *.docx

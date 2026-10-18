@@ -1,0 +1,85 @@
+[
+  {
+    "name": "diary_today",
+    "text": "I walked the dog for 25 minutes at 16:00.",
+    "tool": "record_diary",
+    "arguments": {
+      "date": null
+    },
+    "contains": [
+      "dog",
+      "25 minutes",
+      "16:00"
+    ]
+  },
+  {
+    "name": "diary_yesterday",
+    "text": "Record in yesterday's diary: I had lunch with Alex at 12:30.",
+    "tool": "record_diary",
+    "arguments": {
+      "date": "2026-10-17"
+    },
+    "contains": [
+      "lunch",
+      "Alex",
+      "12:30"
+    ]
+  },
+  {
+    "name": "idea",
+    "text": "Maybe I could build a rainwater monitor with a float sensor.",
+    "tool": "record_idea",
+    "contains": [
+      "rainwater monitor",
+      "float sensor"
+    ]
+  },
+  {
+    "name": "explicit_project",
+    "text": "Add a high priority task to the Solar Plan project: Check the roof. It is due on 2026-10-20.",
+    "tool": "capture_task",
+    "arguments": {
+      "project": "Solar Plan",
+      "priority": "high",
+      "due": "2026-10-20"
+    },
+    "contains": [
+      "roof"
+    ]
+  },
+  {
+    "name": "projectless_task",
+    "text": "I need to buy dog food.",
+    "tool": "capture_task",
+    "arguments": {
+      "project": null,
+      "priority": null,
+      "due": null
+    },
+    "contains": [
+      "buy dog food"
+    ]
+  },
+  {
+    "name": "unclear_date",
+    "text": "Put this in my diary for that day we talked about: I went to York.",
+    "tool": null,
+    "clarification": true
+  },
+  {
+    "name": "unclear_intent",
+    "text": "Dog walk.",
+    "tool": null,
+    "clarification": true
+  },
+  {
+    "name": "ordinary_question",
+    "text": "What is the capital of France?",
+    "tool": null
+  },
+  {
+    "name": "device_command",
+    "text": "Turn off the kitchen lights.",
+    "tool": null
+  }
+]
