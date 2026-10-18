@@ -11,6 +11,7 @@ import pytest
 from backplane.diary.collector import (
     ACTIVITY,
     DISTANCE,
+    DOG,
     MOOD,
     MUSIC,
     PERSON,
@@ -221,3 +222,52 @@ def test_invalid_quantities_are_missing(value: JsonValue) -> None:
 def test_ambiguous_timestamps_are_missing(value: JsonValue) -> None:
     """Naive times cannot be silently assigned a timezone."""
     assert _timestamp(value) is None
+
+
+@pytest.mark.parametrize(
+    ("detections", "expected"),
+    [
+        ([("off", 0), ("on", 8), ("off", 9), ("on", 42)], True),
+        ([("off", 0), ("on", 8), ("off", 9)], False),
+        ([("on", 8), ("off", 9), ("on", 42)], False),
+        ([("unavailable", 0), ("on", 8), ("off", 9), ("on", 42)], False),
+        ([("off", 0), ("on", 4), ("off", 9), ("on", 46)], False),
+        ([], False),
+    ],
+)
+def test_camera_evidence_preserves_uncertain_outing_identity(
+    detections: list[tuple[str, int]],
+    *,
+    expected: bool,
+) -> None:
+    """Only two positive nearby edges support a candidate; absence proves nothing."""
+    places = [
+        state(PERSON, "home"),
+        state(PERSON, "not_home", 10),
+        state(PERSON, "home", 40),
+    ]
+    activity = [state(ACTIVITY, "walking")]
+    original = build_snapshot(DATE, NOW, [], [places, activity], {})
+    observed = build_snapshot(
+        DATE,
+        NOW,
+        [],
+        [
+            places,
+            activity,
+            [state(DOG, value, minute) for value, minute in detections],
+        ],
+        {},
+    )
+    before = next(e for e in original.entries if e.kind == "outing")
+    after = next(e for e in observed.entries if e.kind == "outing")
+    assert before.id == after.id
+    assert after.needs_confirmation
+    assert bool(after.dog_detection_times) is expected
+    assert (DOG in after.source) is expected
+    if expected:
+        assert after.dog_detection_times == [
+            START + dt.timedelta(minutes=8),
+            START + dt.timedelta(minutes=42),
+        ]
+        assert "dog detections" in after.text

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import itertools
 import json
 import math
 from collections import Counter
@@ -16,6 +17,7 @@ from backplane.utils import SETTINGS, exc
 
 PERSON = "person.will"
 ACTIVITY = "sensor.will_s_pixel_6_pro_detected_activity"
+DOG = "binary_sensor.front_steps_dog_occupancy"
 MUSIC = "binary_sensor.will_listening_to_music"
 STEPS = "sensor.will_s_pixel_6_pro_daily_steps"
 DISTANCE = "sensor.will_s_pixel_6_pro_daily_distance"
@@ -27,6 +29,8 @@ _MINIMUM_OUTING_SECONDS = 600
 _MINIMUM_WALKING_SECONDS = 300
 _INVALID = {"unknown", "unavailable", "none", ""}
 _MAX_MOOD_SCORE = 5
+_REQUIRED_DOG_DETECTIONS = 2
+_DOG_BOUNDARY_WINDOW = dt.timedelta(minutes=5)
 
 
 class HAState(BaseModel):
@@ -222,6 +226,52 @@ def _outings(
     return entries
 
 
+def _dog_evidence(
+    entries: list[DiaryEntry],
+    history: list[HAState],
+) -> list[DiaryEntry]:
+    """Corroborate walking outings with positive camera edges at both boundaries.
+
+    Returns:
+        The same outing identities, with evidence that still requires confirmation.
+    """
+    ordered = sorted(history, key=lambda state: state.last_updated)
+    detections = [
+        state.last_updated
+        for previous, state in itertools.pairwise(ordered)
+        if previous.state == "off" and state.state == "on"
+    ]
+    result: list[DiaryEntry] = []
+    for entry in entries:
+        evidence: list[dt.datetime] = []
+        if entry.kind == "outing" and entry.started_at and entry.ended_at:
+            for boundary in (entry.started_at, entry.ended_at):
+                nearby = [
+                    time
+                    for time in detections
+                    if abs(time - boundary) <= _DOG_BOUNDARY_WINDOW
+                ]
+                if nearby:
+                    evidence.append(min(nearby, key=lambda time: abs(time - boundary)))
+
+        if len(set(evidence)) == _REQUIRED_DOG_DETECTIONS:
+            enriched = entry.model_copy(
+                update={
+                    "source": f"{entry.source},{DOG}",
+                    "dog_detection_times": evidence,
+                    "text": (
+                        "Walking outing with dog detections at the front steps near departure "
+                        "and return; was this a dog walk?"
+                    ),
+                },
+            )
+            result.append(enriched)
+        else:
+            result.append(entry)
+
+    return result
+
+
 def _mood_entries(
     states: dict[str, HAState],
     date: dt.date,
@@ -346,7 +396,7 @@ def build_snapshot(
     else:
         missing.append("Spotify listening coverage")
 
-    entries = _locations(histories, start, end)
+    entries = _dog_evidence(_locations(histories, start, end), histories.get(DOG, []))
     if not histories.get(PERSON):
         missing.append("Location history")
     mood_scores: list[float] = []
@@ -474,7 +524,7 @@ async def collect_day(date: dt.date) -> DiarySnapshot:
             await get(
                 f"api/history/period/{start.isoformat()}",
                 {
-                    "filter_entity_id": f"{PERSON},{ACTIVITY},{MUSIC},{STEPS},{DISTANCE},{WEIGHT}",
+                    "filter_entity_id": f"{PERSON},{ACTIVITY},{DOG},{MUSIC},{STEPS},{DISTANCE},{WEIGHT}",
                     "end_time": min(end, now).isoformat(),
                 },
             ),
