@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from typing import Annotated, Literal
+from typing import Annotated, ClassVar, Literal
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator
 
@@ -50,7 +50,7 @@ class ReviewResolution(BaseModel, frozen=True):
 class ReviewSubmission(BaseModel, frozen=True):
     """Durable receipt; only saved means its Obsidian export completed."""
 
-    model_config: ConfigDict = ConfigDict(from_attributes=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
     prompt_id: uuid.UUID
