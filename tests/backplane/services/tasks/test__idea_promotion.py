@@ -26,7 +26,8 @@ async def test__promotion_is_exact_concurrent_and_without_inference(
 ) -> None:
     """Concurrent retry records one task with its source and leaves the idea unchanged."""
     idea = await IdeaService.record(
-        "Maybe automate plant watering", idempotency_key="plant-idea",
+        "Maybe automate plant watering",
+        idempotency_key="plant-idea",
     )
     original = await (obsidian_vault / idea.path).read_text()
     extraction = mocker.patch("backplane.services.tasks._extract_metadata")
@@ -58,7 +59,9 @@ async def test__promotion_rejects_unknown_source_before_any_task_write(
     """A misspelled idea ID cannot silently create an unlinked task."""
     with pytest.raises(exc.NotFoundError):
         await capture_task(
-            "Do this", link_capture_id="idea-missing", idempotency_key="missing",
+            "Do this",
+            link_capture_id="idea-missing",
+            idempotency_key="missing",
         )
     assert not await (obsidian_vault / VAULT_PATHS.task_notes_dir).exists()
 
@@ -70,7 +73,8 @@ async def test__promotion_repairs_backlink_after_task_save(
     """Retried API promotion repairs secondary writes using the pinned source."""
     idea = await IdeaService.record("Maybe solar", idempotency_key="solar")
     failure = mocker.patch(
-        "backplane.services.tasks._annotate_capture", side_effect=OSError("link failed"),
+        "backplane.services.tasks._annotate_capture",
+        side_effect=OSError("link failed"),
     )
     request = CreateTaskRequest(
         description="Research solar",
