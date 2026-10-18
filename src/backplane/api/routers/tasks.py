@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Path, status
+from fastapi import APIRouter, Path, Query, status
 
 from backplane.api.schemas import (
     CreateTaskRequest,
@@ -13,6 +13,7 @@ from backplane.api.schemas import (
     MessageResponse,
 )
 from backplane.operations.tasks import build_task_capture_messages, task_creation_outcome
+from backplane.services import task_catalog
 from backplane.services.tasks import TaskService
 
 router = APIRouter(tags=["tasks"])
@@ -61,3 +62,25 @@ async def link_task_to_capture(
     return MessageResponse(
         message=await TaskService().link_capture(task_slug, request.capture_id),
     )
+
+
+@router.get("/obsidian/tasks")
+async def list_tasks(
+    project: str | None = None,
+    task_status: Annotated[str | None, Query(alias="status")] = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> list[task_catalog.TaskRecord]:
+    """Return a bounded task page with exact project and status filters."""
+    return await task_catalog.list_tasks(
+        project=project,
+        status=task_status,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.get("/obsidian/tasks/{task_id}")
+async def get_task(task_id: str) -> task_catalog.TaskRecord:
+    """Return the exact task ID independently of its filename or title."""
+    return await task_catalog.get_task(task_id)
