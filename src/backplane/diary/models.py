@@ -90,9 +90,9 @@ def retain_entry_aliases(
         matches = [
             old for old in previous.entries if old.id in {entry.id, *entry.aliases}
         ]
-        aliases = list(entry.aliases)
+        aliases: list[str] = []
         if len(matches) == 1:
-            aliases = sorted({*aliases, *matches[0].aliases, matches[0].id} - {entry.id})
+            aliases = sorted({*matches[0].aliases, matches[0].id} - {entry.id})
         entries.append(entry.model_copy(update={"aliases": aliases}))
 
     return snapshot.model_copy(update={"entries": entries})

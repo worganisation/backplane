@@ -141,3 +141,58 @@ def test__identical_calendar_descriptions_do_not_share_legacy_confirmations() ->
     )
     assert len({entry.id for entry in snapshot.entries}) == 2
     assert all(not entry.aliases for entry in snapshot.entries)
+
+
+@pytest.mark.parametrize("original_state", ["renamed", "removed", "absent_revision"])
+def test__new_event_cannot_claim_another_events_legacy_confirmation(
+    original_state: str,
+) -> None:
+    """Legacy confirmation stays with its UID even when another event reuses its wording."""
+    date = dt.date(2026, 10, 17)
+    now = dt.datetime(2026, 10, 18, tzinfo=dt.UTC)
+    original = CalendarEvent.model_validate({
+        "summary": "Meeting",
+        "start": {"dateTime": "2026-10-17T10:00:00+00:00"},
+        "end": {"dateTime": "2026-10-17T11:00:00+00:00"},
+    })
+    snapshot = build_snapshot(
+        date,
+        now,
+        [],
+        [],
+        {"calendar.test": CalendarEvents(events=[original])},
+    )
+    response = DiaryReviewResponse(
+        request_id="legacy-review",
+        decisions=[DiaryDecision(entry_id=snapshot.entries[0].id, outcome="confirmed")],
+    )
+    identified = original.model_copy(update={"uid": "original"})
+    renamed = identified.model_copy(update={"summary": "Renamed meeting"})
+    replacement = original.model_copy(update={"uid": "replacement"})
+    revisions = [[identified]]
+    if original_state == "absent_revision":
+        revisions.append([])
+    elif original_state == "renamed":
+        revisions.append([renamed])
+
+    revisions.append(
+        [renamed, replacement] if original_state == "renamed" else [replacement],
+    )
+    for events in revisions:
+        snapshot = retain_entry_aliases(
+            build_snapshot(
+                date,
+                now,
+                [],
+                [],
+                {"calendar.test": CalendarEvents(events=events)},
+            ),
+            snapshot,
+        )
+
+    reviewed = reviewed_entries(snapshot, [response])
+    assert [(entry.text, entry.needs_confirmation) for entry in reviewed] == (
+        [("Attended: Renamed meeting (confirmed by Will)", False)]
+        if original_state == "renamed"
+        else []
+    ) + [("Scheduled: Meeting", True)]
