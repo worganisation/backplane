@@ -185,6 +185,10 @@ async def test_one_review_concurrent_claims_and_explicit_corrections(
     reviews = [item for item in claims if item is not None]
     assert len(reviews) == 1
     review = reviews[0]
+    found = await diary.get_review_for_date(DATE)
+    assert found is not None
+    assert found.prompt.id == review.prompt.id
+    assert await diary.get_review_for_date(DATE - dt.timedelta(days=1)) is None
     assert await diary.get_review() is None
     _ = await diary.submitted(review.prompt.id)
     assert await diary.get_review() is not None

@@ -58,6 +58,7 @@ def register_diary_tools(mcp: FastMCP[None], *, require_oauth: bool = False) -> 
         save_diary_review,
         get_diary_day,
         summarize_diary_period,
+        get_diary_review_for_date,
     ):
         _ = mcp.tool(**auth_kwargs)(tool)
 
@@ -72,6 +73,19 @@ async def get_diary_day(date: dt.date) -> DiaryDay | None:
         Automatic diary data, or null when the day was never collected.
     """
     return await DiaryHistoryService().get_day(date)
+
+
+async def get_diary_review_for_date(date: dt.date) -> DiaryReview | None:
+    """Find an existing review for the requested day, never substitute the latest prompt.
+
+    Use the returned prompt and entry IDs for explicit corrections. A null result
+    means no review exists for that day; this tool creates no notification. Inspect
+    prompt status before saving: dismissed or otherwise inactive reviews cannot save.
+
+    Returns:
+        Original notification snapshot and prior responses, or null.
+    """
+    return await DiaryService().get_review_for_date(date)
 
 
 async def summarize_diary_period(start: dt.date, end: dt.date) -> DiaryPeriod:
