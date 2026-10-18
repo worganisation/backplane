@@ -454,7 +454,9 @@ Returns:
 Read the exact daily review before discussing the diary notification.
 
 Omit prompt_id for the latest delivered review. If absent, ask which day the user
-means. Ask one combined question about unresolved events and possible walks.
+means. focus_entry_id identifies the single event asked about in prompt.wording.
+Interpret a direct answer only against that question, not every unresolved item.
+Without a focus, ask which event a short or ambiguous reply refers to.
 Calendar entries are scheduled, never evidence of attendance. Consult responses
 for already answered IDs; do not ask again. Mood notes are the user's words.
 
