@@ -50,6 +50,7 @@ async def test_observation_survives_retry_and_automatic_resync(
     mocker.stop(mock_export)
     result = await service.record(request)
     assert result.created is False
+    assert result.event.status == "tentative"
     assert (await service.record(request)).event.id == result.event.id
     day = await DiaryHistoryService(context_session_factory).get_day(date)
     assert day is not None
@@ -88,6 +89,7 @@ async def test_observation_key_is_scoped_to_source_and_rejects_changed_text(
         certainty="confirmed",
     )
     first = await service.record(request)
+    assert first.event.status == "confirmed"
     with pytest.raises(exc.ConflictError):
         _ = await service.record(request.model_copy(update={"text": "Different event"}))
 

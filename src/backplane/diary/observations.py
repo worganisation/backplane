@@ -7,7 +7,11 @@ from typing import TYPE_CHECKING, Annotated, Literal
 from pydantic import AwareDatetime, BaseModel, Field, field_validator
 from sqlalchemy import select
 
-from backplane.context.schemas import ContextEventCreate, ContextEventResult
+from backplane.context.schemas import (
+    ContextEventCreate,
+    ContextEventResult,
+    ContextEventStatus,
+)
 from backplane.context.tables import ContextEventRow
 from backplane.diary.render import plain
 from backplane.services.context_capture import ContextCaptureService
@@ -89,6 +93,9 @@ class DiaryObservationService(ContextCaptureService):
                 source=request.source,
                 idempotency_key=f"diary-observation:{request.idempotency_key}",
                 kind="diary_observation",
+                status=ContextEventStatus.CONFIRMED
+                if request.certainty == "confirmed"
+                else ContextEventStatus.TENTATIVE,
                 correlation_key=date.isoformat(),
                 occurred_at=request.occurred_at,
                 timezone=str(SETTINGS.local_timezone),
