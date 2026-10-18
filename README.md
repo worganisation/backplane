@@ -211,8 +211,8 @@ Tool routing:
 - Use `add_to_daily_note` for a different daily-note section explicitly requested by the user.
 - Use `update_task` for explicit status or project changes by stable task ID; report board warnings.
 - Use `list_tasks` to browse tasks by project/status, and `get_task` to retrieve an exact stable task ID.
-- Use `capture_task` for actionable things the user needs, wants, or intends to do, without model enrichment.
-- Use `create_task` when metadata enrichment or a confirmed prior idea link is requested.
+- Use `capture_task` for actions without model enrichment; pass an exact idea ID for explicit promotion.
+- Use `create_task` only when metadata enrichment is requested.
 - Use `record_idea` for loose, speculative, non-committal ideas.
 - Use `list_ideas` to browse captures and `get_idea` to read a stable capture ID.
   Legacy minute groups can contain several ideas.
@@ -302,7 +302,8 @@ Quickly save an action to do as a task and add its board card, without calling a
 Prefer for voice capture: 'I need to', 'I should', or 'add a task'. No project is required.
 Preserves original text and explicit project; does not infer entity links,
 schedule reminders or arrange later enrichment.
-Use create_task only when metadata enrichment or a confirmed idea link is requested.
+Pass link_capture_id to promote an explicitly selected idea in the same retryable write.
+Use create_task only when metadata enrichment is requested.
 Reuse the same idempotency_key and fields on retries; report any returned warnings.
 
 Returns:
@@ -313,6 +314,7 @@ Returns:
 | `description` | `string` | yes | — | Full original action to remember. |
 | `due` | `string`? | no | `null` | Explicit YYYY-MM-DD deadline only. |
 | `idempotency_key` | `string`? | no | `null` | Stable operation key; reuse unchanged input on retry. |
+| `link_capture_id` | `string`? | no | `null` | Exact individual idea ID explicitly selected for promotion; no fuzzy matching. |
 | `priority` | `low` \| `medium` \| `high`? | no | `null` |  |
 | `project` | `string`? | no | `null` | Explicit project name; creates a stub if absent. Omit for no explicit assignment. |
 | `title` | `string`? | no | `null` | Optional short title; omit if not supplied. |
@@ -744,8 +746,8 @@ Save the user's elaboration against the exact IDs from get_idea_followup.
 
 Preserve the user's wording. This stores development notes, not a commitment.
 Create a project or task only when the user explicitly asks to commit to it.
-For tasks use capture_task then link_task_to_capture with its task filename stem and
-this capture_id. This avoids model enrichment; projectless tasks are valid.
+For tasks use capture_task with link_capture_id set to this exact capture_id.
+This avoids model enrichment; projectless tasks are valid.
 For a project, include the original idea wikilink and this development note in
 its Overview using create_vault_entity/update_vault_entity.
 
