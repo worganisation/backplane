@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.11.0 (2026-10-18)
+
+### Features
+
+- Capture and review automatic daily diaries
+  ([#125](https://github.com/worganisation/backplane/pull/125),
+  [`10a1028`](https://github.com/worganisation/backplane/commit/10a1028518db02de68284189470a469bcee20859))
+
+
 ## v0.10.0 (2026-10-17)
 
 ### Features
