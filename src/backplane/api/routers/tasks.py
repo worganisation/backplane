@@ -13,7 +13,7 @@ from backplane.api.schemas import (
     MessageResponse,
 )
 from backplane.operations.tasks import build_task_capture_messages, task_creation_outcome
-from backplane.services import task_catalog
+from backplane.services import task_catalog, task_updates
 from backplane.services.tasks import TaskService
 
 router = APIRouter(tags=["tasks"])
@@ -84,3 +84,12 @@ async def list_tasks(
 async def get_task(task_id: str) -> task_catalog.TaskRecord:
     """Return the exact task ID independently of its filename or title."""
     return await task_catalog.get_task(task_id)
+
+
+@router.patch("/obsidian/tasks/{task_id}")
+async def update_task(
+    task_id: str,
+    request: task_updates.TaskUpdate,
+) -> task_updates.TaskUpdateResult:
+    """Return persisted task fields and any recoverable board projection warnings."""
+    return await task_updates.update_task(task_id, request)

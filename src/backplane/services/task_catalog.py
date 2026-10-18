@@ -30,6 +30,8 @@ class TaskRecord(BaseModel, frozen=True):
     projects: list[str] = Field(default_factory=list)
     due: str | None = None
     source_capture: str | None = None
+    completed: str | None = None
+    updated: str | None = None
     body: str
 
 
