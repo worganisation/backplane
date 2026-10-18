@@ -14,7 +14,12 @@ from sqlalchemy import func, select
 
 from backplane.api.app import create_api_app
 from backplane.api.routers.diary import get_diary_service
-from backplane.context.tables import CaptureResponseRow, ContextEventRow
+from backplane.context.schemas import (
+    CaptureBudgetClass,
+    CapturePromptDeliveryRequest,
+    CapturePromptEvaluationRequest,
+)
+from backplane.context.tables import CapturePromptRow, CaptureResponseRow, ContextEventRow
 from backplane.diary.models import (
     DiaryDecision,
     DiaryEntry,
@@ -183,7 +188,12 @@ async def test_one_review_concurrent_claims_and_explicit_corrections(
     await diary.store_snapshot(snapshot())
     claims = await asyncio.gather(*(diary.reserve(AVAILABLE) for _ in range(5)))
     reviews = [item for item in claims if item is not None]
-    assert len(reviews) == 1
+    assert len(reviews) == 5
+    assert len({review.prompt.id for review in reviews}) == 1
+    async with diary._session_factory() as session:
+        assert (
+            await session.scalar(select(func.count()).select_from(CapturePromptRow)) == 1
+        )
     review = reviews[0]
     found = await diary.get_review_for_date(DATE)
     assert found is not None
@@ -191,6 +201,7 @@ async def test_one_review_concurrent_claims_and_explicit_corrections(
     assert await diary.get_review_for_date(DATE - dt.timedelta(days=1)) is None
     assert await diary.get_review() is None
     _ = await diary.submitted(review.prompt.id)
+    assert await diary.reserve(AVAILABLE) is None
     assert await diary.get_review() is not None
     for request_id, outcome in [
         ("first", "confirmed"),
@@ -216,6 +227,89 @@ async def test_one_review_concurrent_claims_and_explicit_corrections(
     assert await diary.reserve(AVAILABLE) is None
     _ = await diary.dismiss_review(review.prompt.id)
     assert await diary.get_review() is None
+
+
+async def test_unsubmitted_review_retry_keeps_pinned_snapshot_and_budget(
+    diary: DiaryService,
+    mocker: MockerFixture,
+) -> None:
+    """A failed notification can recover its exact claim despite newer source collection."""
+    await diary.store_snapshot(snapshot())
+    original = await diary.reserve(AVAILABLE)
+    assert original is not None
+
+    await diary.store_snapshot(snapshot(2000, 1))
+    retry = await diary.reserve(AVAILABLE)
+    assert retry is not None
+    assert retry == original
+    assert retry.snapshot.metrics["steps"] == 1000
+    async with diary._session_factory() as session:
+        assert (
+            await session.scalar(select(func.count()).select_from(CapturePromptRow)) == 1
+        )
+
+    assert await diary.reserve(FollowupAvailability()) is None
+    clock = mocker.patch(
+        "backplane.diary.service.utc_now",
+        return_value=NOW.replace(hour=10),
+    )
+    assert await diary.reserve(AVAILABLE) is None
+    mocker.stop(clock)
+
+    _ = await diary.dismiss_review(original.prompt.id)
+    assert await diary.reserve(AVAILABLE) is None
+
+
+async def test_unsubmitted_retry_respects_other_prompt_delivery_cooldown(
+    diary: DiaryService,
+    mocker: MockerFixture,
+) -> None:
+    """Recovering a diary skips its own reservation but respects other interruptions."""
+    await diary.store_snapshot(snapshot())
+    original = await diary.reserve(AVAILABLE)
+    assert original is not None
+
+    other = await diary.evaluate_prompt(
+        CapturePromptEvaluationRequest(
+            user_id="will",
+            source="mood_capture",
+            idempotency_key="other-prompt",
+            kind="mood",
+            budget_class=CaptureBudgetClass.CONTEXT,
+            event_ids=original.prompt.event_ids,
+            reason="A mood check",
+            wording="How are you feeling?",
+            scheduled_for=NOW - dt.timedelta(hours=2),
+        ),
+    )
+    assert other.allowed
+    _ = await diary.mark_delivered(
+        other.prompt.id,
+        CapturePromptDeliveryRequest(delivered_at=NOW + dt.timedelta(minutes=5)),
+    )
+
+    clock = mocker.patch(
+        "backplane.diary.service.utc_now",
+        return_value=NOW + dt.timedelta(minutes=10),
+    )
+    assert await diary.reserve(AVAILABLE) is None
+
+    clock.return_value = NOW + dt.timedelta(minutes=95)
+    assert await diary.reserve(AVAILABLE) == original
+
+
+async def test_expired_scheduled_review_is_not_returned(diary: DiaryService) -> None:
+    """An expired scheduled claim cannot be sent or replaced for the same day."""
+    await diary.store_snapshot(snapshot())
+    original = await diary.reserve(AVAILABLE)
+    assert original is not None
+
+    async with diary._session_factory() as session, session.begin():
+        row = await session.get(CapturePromptRow, original.prompt.id)
+        assert row is not None
+        row.expires_at = NOW
+
+    assert await diary.reserve(AVAILABLE) is None
 
 
 @pytest.mark.parametrize(

@@ -241,7 +241,7 @@ class DiaryService(ContextCaptureService):
         """Reserve a single evening review per local day, shared-budget and cooldown aware.
 
         Returns:
-            A new daily claim, or None when unavailable or already claimed.
+            A new or unsubmitted daily claim, or None when unavailable or completed.
         """
         now = utc_now()
         local = now.astimezone(SETTINGS.local_timezone)
@@ -253,19 +253,35 @@ class DiaryService(ContextCaptureService):
             return None
         async with self._session_factory() as session, session.begin():
             policy = await self._policy_row(session, _USER, lock=True)
-            row = await self._latest(session, local.date(), "diary_snapshot")
-            if row is None:
-                return None
-            snapshot = DiarySnapshot.model_validate(row.payload)
             existing = await session.scalar(
-                select(CapturePromptRow.id).where(
+                select(CapturePromptRow).where(
                     CapturePromptRow.source == _SOURCE,
                     CapturePromptRow.user_id == _USER,
                     CapturePromptRow.idempotency_key == local.date().isoformat(),
                 ),
             )
             if existing is not None:
+                return (
+                    await self.get_review(existing.id)
+                    if existing.status == CapturePromptStatus.SCHEDULED.value
+                    and existing.expires_at is not None
+                    and existing.expires_at > now
+                    and await self._next_allowed_schedule(
+                        session,
+                        policy,
+                        _USER,
+                        now,
+                        excluded_prompt_id=existing.id,
+                    )
+                    <= now
+                    else None
+                )
+
+            row = await self._latest(session, local.date(), "diary_snapshot")
+            if row is None:
                 return None
+
+            snapshot = DiarySnapshot.model_validate(row.payload)
             request = CapturePromptEvaluationRequest(
                 user_id=_USER,
                 source=_SOURCE,
