@@ -4,12 +4,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import aiohttp
 import pytest
 from pydantic import JsonValue
 
 from scripts.deploy.capture_assist import (
     GeneralConfig,
     HomeAssistant,
+    cancel_general_flow,
     configure_general,
     form_values,
     mapping,
@@ -205,3 +207,64 @@ async def test_unavailable_integration_stops_before_prompt_flow(
             GeneralConfig(entry_id="openai", subentry_id="general", mcp_entry_id="tools"),
         )
     assert general_ha.request.await_count == (0 if failure == "missing_agent" else 1)
+
+
+async def test_waits_for_reload_before_readback(
+    general_ha: Mock,
+    mocker: MockerFixture,
+) -> None:
+    """A saved subentry may be temporarily unavailable while its listener reloads it."""
+    mocker.patch("scripts.deploy.capture_assist.Path.read_text", return_value="owned")
+    sleep = mocker.patch("scripts.deploy.capture_assist.asyncio.sleep")
+    general_ha.request.side_effect = [
+        {"require_restart": False},
+        {"type": "abort", "reason": "entry_not_loaded"},
+        initial_form(),
+        {"type": "abort", "reason": "reconfigure_successful"},
+        {"type": "abort", "reason": "entry_not_loaded"},
+        initial_form("owned\n\nowned\n"),
+        {},
+    ]
+    await configure_general(
+        general_ha,
+        GeneralConfig(entry_id="openai", subentry_id="general", mcp_entry_id="tools"),
+    )
+    assert sleep.await_count == 2
+    assert (
+        sum(call.args[0] == "DELETE" for call in general_ha.request.await_args_list) == 1
+    )
+
+
+async def test_reload_timeout_is_bounded(general_ha: Mock, mocker: MockerFixture) -> None:
+    """A permanently unloaded entry fails without attempting to delete aborted flows."""
+    sleep = mocker.patch("scripts.deploy.capture_assist.asyncio.sleep")
+    general_ha.request.side_effect = [
+        {"require_restart": False},
+        *[{"type": "abort", "reason": "entry_not_loaded"}] * 30,
+    ]
+    with pytest.raises(RuntimeError, match="did not finish reloading"):
+        await configure_general(
+            general_ha,
+            GeneralConfig(entry_id="openai", subentry_id="general", mcp_entry_id="tools"),
+        )
+    assert sleep.await_count == 30
+    assert all(call.args[0] != "DELETE" for call in general_ha.request.await_args_list)
+
+
+@pytest.mark.parametrize("status", [404, 500])
+async def test_flow_cleanup_only_ignores_missing_flows(
+    general_ha: Mock,
+    mocker: MockerFixture,
+    status: int,
+) -> None:
+    """HA may already remove an aborted flow; other cleanup failures stay visible."""
+    general_ha.request.side_effect = aiohttp.ClientResponseError(
+        mocker.Mock(),
+        (),
+        status=status,
+    )
+    if status == 404:
+        await cancel_general_flow(general_ha, "flow")
+    else:
+        with pytest.raises(aiohttp.ClientResponseError):
+            await cancel_general_flow(general_ha, "flow")

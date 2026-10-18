@@ -403,6 +403,44 @@ async def update_general_prompt(
     raise RuntimeError(msg)
 
 
+async def open_general_form(
+    ha: HomeAssistant,
+    initial: dict[str, JsonValue],
+) -> dict[str, JsonValue]:
+    """Wait for a conversation entry's asynchronous reload before opening its flow.
+
+    Returns:
+        The active configuration form.
+
+    Raises:
+        RuntimeError: If the entry stays unavailable or rejects configuration.
+    """
+    for _ in range(30):
+        form = mapping(await ha.request("POST", _FLOW, initial))
+        if form.get("type") == "form":
+            return form
+        if form.get("type") != "abort" or form.get("reason") != "entry_not_loaded":
+            msg = "General assistant configuration could not be opened"
+            raise RuntimeError(msg)
+        await asyncio.sleep(1)
+
+    msg = "General assistant did not finish reloading"
+    raise RuntimeError(msg)
+
+
+async def cancel_general_flow(ha: HomeAssistant, flow_id: str) -> None:
+    """Discard an unused flow without masking errors when HA already aborted it.
+
+    Raises:
+        aiohttp.ClientResponseError: For errors other than an already-removed flow.
+    """
+    try:
+        await ha.request("DELETE", f"{_FLOW}/{flow_id}")
+    except aiohttp.ClientResponseError as error:
+        if error.status != HTTPStatus.NOT_FOUND:
+            raise
+
+
 async def configure_general(ha: HomeAssistant, config: GeneralConfig) -> None:
     """Refresh Backplane tools and update only the owned prompt on an existing agent.
 
@@ -444,7 +482,7 @@ async def configure_general(ha: HomeAssistant, config: GeneralConfig) -> None:
         "handler": [config.entry_id, "conversation"],
         "subentry_id": config.subentry_id,
     }
-    form = mapping(await ha.request("POST", _FLOW, initial))
+    form = await open_general_form(ha, initial)
     flow_id = identifier(form, "flow_id")
     completed = False
     try:
@@ -461,9 +499,9 @@ async def configure_general(ha: HomeAssistant, config: GeneralConfig) -> None:
         completed = True
     finally:
         if not completed:
-            await ha.request("DELETE", f"{_FLOW}/{flow_id}")
+            await cancel_general_flow(ha, flow_id)
 
-    verification = mapping(await ha.request("POST", _FLOW, initial))
+    verification = await open_general_form(ha, initial)
     verification_id = identifier(verification, "flow_id")
     try:
         saved = form_values(verification)
@@ -471,7 +509,7 @@ async def configure_general(ha: HomeAssistant, config: GeneralConfig) -> None:
             msg = "General assistant prompt or API selection did not persist"
             raise RuntimeError(msg)
     finally:
-        await ha.request("DELETE", f"{_FLOW}/{verification_id}")
+        await cancel_general_flow(ha, verification_id)
 
 
 async def main() -> None:
