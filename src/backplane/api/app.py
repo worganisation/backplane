@@ -9,6 +9,7 @@ from backplane.api.errors import handle_backplane_error
 from backplane.api.routers import (
     context_capture,
     daily_notes,
+    diary,
     entities,
     health,
     idea_followup,
@@ -34,6 +35,7 @@ def create_api_app() -> FastAPI:
     for router in (
         health.router,
         idea_followup.router,
+        diary.router,
         context_capture.router,
         daily_notes.router,
         notes.router,
