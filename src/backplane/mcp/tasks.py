@@ -13,6 +13,7 @@ from backplane.operations.tasks import (
     build_task_capture_messages,
     task_creation_outcome,
 )
+from backplane.services.task_catalog import get_task, list_tasks
 from backplane.services.tasks import TaskService
 from backplane.utils import enums  # ruff:ignore[typing-only-first-party-import]
 
@@ -248,6 +249,8 @@ def register_task_tools(mcp: FastMCP[None], *, require_oauth: bool = False) -> N
     if require_oauth:
         auth_kwargs = oauth_tool_registration_kwargs()
 
+    _ = mcp.tool(**auth_kwargs)(list_tasks)
+    _ = mcp.tool(**auth_kwargs)(get_task)
     _ = mcp.tool(description=_CREATE_TASK_DESCRIPTION, **auth_kwargs)(create_task)
     _ = mcp.tool(**auth_kwargs)(capture_task)
     _ = mcp.tool(description=_LINK_TASK_TO_CAPTURE_DESCRIPTION, **auth_kwargs)(
