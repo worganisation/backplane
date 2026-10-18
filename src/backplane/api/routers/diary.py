@@ -51,7 +51,8 @@ async def summarize_diary(start: dt.date, end: dt.date) -> DiaryPeriod:
 
 @router.get("/days/{date}/review")
 async def read_diary_review_for_date(
-    date: dt.date, service: Service
+    date: dt.date,
+    service: Service,
 ) -> DiaryReview | None:
     """Return the exact existing review without creating or sending a notification."""
     return await service.get_review_for_date(date)
