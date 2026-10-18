@@ -11,12 +11,14 @@ from fastapi import APIRouter, Depends
 from backplane.api.context_auth import require_context_api_token
 from backplane.context.schemas import (
     CapturePrompt,  # ruff:ignore[typing-only-first-party-import] -- The transport resolves annotations at runtime.
+    ContextEventResult,  # ruff: ignore[typing-only-first-party-import] -- FastAPI resolves response types at runtime.
 )
 from backplane.diary.history import DiaryDay, DiaryHistoryService, DiaryPeriod
 from backplane.diary.models import (  # ruff:ignore[typing-only-first-party-import] -- The transport resolves annotations at runtime.
     DiarySyncRequest,
     DiarySyncResult,
 )
+from backplane.diary.observations import DiaryObservationCreate, DiaryObservationService
 from backplane.diary.service import DiaryReview, DiaryService
 from backplane.services.idea_followup import (
     FollowupAvailability,  # ruff:ignore[typing-only-first-party-import] -- The transport resolves annotations at runtime.
@@ -37,6 +39,12 @@ def get_diary_service() -> DiaryService:
 Service = Annotated[DiaryService, Depends(get_diary_service)]
 
 
+@router.post("/observations")
+async def record_diary_observation(request: DiaryObservationCreate) -> ContextEventResult:
+    """Return the persisted observation after exporting its local diary date."""
+    return await DiaryObservationService().record(request)
+
+
 @router.get("/days/{date}")
 async def read_diary_day(date: dt.date) -> DiaryDay | None:
     """Return latest automatic diary data without collecting or generating text."""
@@ -51,7 +59,8 @@ async def summarize_diary(start: dt.date, end: dt.date) -> DiaryPeriod:
 
 @router.get("/days/{date}/review")
 async def read_diary_review_for_date(
-    date: dt.date, service: Service
+    date: dt.date,
+    service: Service,
 ) -> DiaryReview | None:
     """Return the exact existing review without creating or sending a notification."""
     return await service.get_review_for_date(date)

@@ -665,6 +665,21 @@ Returns:
 | `date` | `date` (YYYY-MM-DD)? | no | `null` | YYYY-MM-DD; omit for today. |
 | `idempotency_key` | `string`? | no | `null` | Unique operation key; reuse identical input on retry. |
 
+#### `record_diary_observation`
+
+Record a dated automation observation with a stable source/key and exact wording.
+
+Use candidate for inferred events, including camera/location dog-walk guesses.
+Use confirmed only for explicit user confirmation or a directly established fact.
+Reuse identical input on retries. This adds no tasks, notifications or model calls.
+
+Returns:
+    Durable event receipt after its Recorded activities note section is exported.
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `request` | `object` | yes | — | Exact source observation with caller-owned identity and explicit certainty. |
+
 #### `record_idea`
 
 Supply a unique idempotency_key and reuse identical input on retry.
