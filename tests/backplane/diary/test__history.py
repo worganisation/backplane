@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from backplane.diary.history import DiaryHistoryService
-from backplane.diary.models import DiarySnapshot
+from backplane.diary.models import DiarySnapshot, HabitMeasurement
 from backplane.utils import exc
 
 if TYPE_CHECKING:
@@ -73,3 +73,35 @@ async def test_summary_rejects_unbounded_ranges(
     start = dt.date(2026, 1, 1)
     with pytest.raises(exc.BadRequestError):
         _ = await service.summarize(start, start + dt.timedelta(days=days))
+
+
+async def test_structured_tracking_distinguishes_zero_and_missing(
+    context_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """Covered empty mood days and zero habit counts differ from missing source records."""
+    service = DiaryHistoryService(context_session_factory)
+    start = dt.date(2026, 1, 1)
+    now = dt.datetime(2026, 1, 4, tzinfo=dt.UTC)
+    for offset, scores, count in ((0, [2.0, 4.0], 2), (1, [], 0)):
+        await service.store_snapshot(
+            DiarySnapshot(
+                date=start + dt.timedelta(days=offset),
+                collected_at=now,
+                mood_scores=scores,
+                habits={"water": HabitMeasurement(name="Water", count=count)},
+            ),
+        )
+
+    period = await service.summarize(start, start + dt.timedelta(days=2))
+    assert period.mood.model_dump() == {"covered_days": 2, "samples": 2, "average": 3}
+    assert period.habits["water"].model_dump() == {
+        "name": "Water",
+        "observed_days": 2,
+        "missing_days": 1,
+        "completed_days": 1,
+        "completions": 2,
+    }
+    empty = await service.get_day(start + dt.timedelta(days=1))
+    assert empty is not None
+    assert empty.mood_scores == []
+    assert empty.habits["water"].count == 0
