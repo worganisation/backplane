@@ -18,58 +18,33 @@ jobs:
     name: Deploy
     if: '!github.event.release.prerelease'
     environment: production-deploy
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, cc, iac, opentofu]
     timeout-minutes: 10
     permissions:
       contents: read
     steps:
-      - name: Connect to Tailscale
-        uses: tailscale/github-action@d1b6cd204f8dceda5b3eaad7f1f767be390056cd # v4.2.0
+      - name: Set up LAN SSH
+        id: ssh
+        # yamllint disable-line rule:line-length
+        uses: worganisation/github-config-files/actions/lan-ssh@ff2bdafb7120c951c6dfa6d968e1e4a69b9092ec
         with:
-          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-          tags: tag:ci
-          ping: ${{ vars.BACKPLANE_TAILSCALE_HOSTNAME }}
-
-      - name: Set up SSH key and known hosts
-        env:
-          DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
-          TAILSCALE_HOSTNAME: ${{ vars.BACKPLANE_TAILSCALE_HOSTNAME }}
-        run: |
-          install -d -m 700 "${RUNNER_TEMP}/ssh"
-          install -m 600 /dev/null "${RUNNER_TEMP}/ssh/deploy_key"
-          printf '%s\n' "${DEPLOY_SSH_PRIVATE_KEY}" > "${RUNNER_TEMP}/ssh/deploy_key"
-          for attempt in {1..6}; do
-            if ssh-keyscan -T 10 -H "${TAILSCALE_HOSTNAME}" \
-              > "${RUNNER_TEMP}/ssh/known_hosts" \
-              && test -s "${RUNNER_TEMP}/ssh/known_hosts"; then
-              exit 0
-            fi
-            echo "SSH host-key scan attempt ${attempt}/6 failed."
-            if [ "${attempt}" -lt 6 ]; then
-              sleep 5
-            fi
-          done
-          echo "::error::Backplane SSH is unreachable; check Tailscale routing, access rules and port 22."
-          exit 1
+          private-key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          known-hosts: ${{ vars.DEPLOY_SSH_KNOWN_HOSTS }}
 
       - name: Deploy
         env:
+          SSH_CONFIG: ${{ steps.ssh.outputs.config }}
+          DEPLOY_HOST: 10.0.0.108
           DEPLOY_SSH_USER: ${{ vars.DEPLOY_SSH_USER }}
           INSTALL_DIR: ${{ vars.BACKPLANE_INSTALL_DIR }}
-          TAILSCALE_HOSTNAME: ${{ vars.BACKPLANE_TAILSCALE_HOSTNAME }}
           TAG: ${{ github.event.release.tag_name }}
         run: |
-          ssh \
-            -i "${RUNNER_TEMP}/ssh/deploy_key" \
-            -o IdentitiesOnly=yes \
-            -o BatchMode=yes \
-            -o ConnectTimeout=10 \
-            -o StrictHostKeyChecking=yes \
-            -o UserKnownHostsFile="${RUNNER_TEMP}/ssh/known_hosts" \
-            "${DEPLOY_SSH_USER}@${TAILSCALE_HOSTNAME}" \
-            "cd '${INSTALL_DIR}' && git fetch --tags origin && git reset --hard '${TAG}' && just _deploy-current"
-
-      - name: Remove temporary SSH credentials
-        if: always()
-        run: rm -f "${RUNNER_TEMP}/ssh/deploy_key" "${RUNNER_TEMP}/ssh/known_hosts"
+          set -euo pipefail
+          [[ "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$DEPLOY_SSH_USER" =~ ^[a-z_][a-z0-9_-]*$ ]]
+          [[ "$INSTALL_DIR" =~ ^/[a-zA-Z0-9_./-]+$ ]]
+          # Validated values are intentionally expanded into the remote command.
+          # shellcheck disable=SC2029
+          ssh -F "$SSH_CONFIG" "${DEPLOY_SSH_USER}@${DEPLOY_HOST}" \
+            "cd '${INSTALL_DIR}' && git fetch --tags origin &&
+            git reset --hard 'refs/tags/${TAG}' && just _deploy-current"

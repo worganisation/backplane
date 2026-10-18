@@ -1,7 +1,7 @@
 # Manual release authentication
 
 Dispatch `Semantic Release` on `main`, normally with `force-deployment=auto`.
-After the existing production environment approval, Semantic Release writes
+Semantic Release writes
 version metadata, pushes its release commit and tag, and creates a GitHub
 release. A stable published release triggers `Deploy release`; a prerelease does
 not deploy. Merge and branch push events do not initiate releases.
@@ -32,33 +32,14 @@ updater replaces it with a published version during a later release. Merge the
 GCF change before this caller, then perform the separately authorized release.
 Never print key values.
 
+## Application deployment
+
+Stable published releases deploy from the shared CC Linux runner over LAN SSH to `10.0.0.108`. GCF's `actions/lan-ssh` provisions temporary SSH files with strict host-key verification and cleans them up automatically. Infrastructure owns the runner's TCP 22 allowlist and the guest's deployment public key.
+
+Set `DEPLOY_SSH_PRIVATE_KEY` in Actions secrets and `DEPLOY_SSH_KNOWN_HOSTS` in Actions variables, using independently verified entries for `10.0.0.108`. Keep `DEPLOY_SSH_USER=root` and `BACKPLANE_INSTALL_DIR=/root/backplane` configured. Use the `production-deploy` environment or repository settings for private repositories on GitHub Free. The workflow checks out the exact release tag on the host and invokes `just _deploy-current`.
+
 ## Troubleshooting
 
-Release run `36356970753` successfully published `0.8.0`, but deployment run
-`36357013796` failed during the first SSH host-key scan, before running any remote
-deployment command. The scan started immediately after Tailscale connected and
-timed out after five seconds. Read-only inspection found Backplane online at
-`backplane.tail9d999f.ts.net`, with OpenSSH listening on port 22 and an incoming
-Tailscale filter allowing that traffic. This is consistent with a connection
-startup delay, but does not establish the runner-side cause.
+For SSH failures, check runner-to-host TCP 22 connectivity, the matching deployment public key and the verified known-hosts entry. Never disable strict host-key checking. For release publication failures, check repository deploy-key write access and ruleset bypass actors without exposing secret values. An authentication failure indicates the key/SSH path; GH013 indicates repository rules. Keep the documented branch protections intact.
 
-The deployment workflow now verifies Tailscale connectivity and retries the SSH
-scan up to six times with ten-second scan timeouts and five-second gaps. A
-persistent failure still stops before deployment and reports the network checks
-needed. Temporary SSH files are removed even when setup or deployment fails.
-If connectivity verification fails, inspect the CI node's access to Backplane;
-a successful Tailscale login alone does not establish that route. The workflow
-continues to obtain host keys through the tailnet scan, as before.
-
-Run `36049788133` failed with GH013 because its HTTPS bot-token push had no ruleset
-bypass. Adding a deploy key alone is insufficient: checkout must use it, Semantic
-Release must use SSH for pushes, and the ruleset must permit deploy-key bypass.
-
-Check key titles/write permissions, secret names, and ruleset bypass actors without
-reading secret values. An authentication failure indicates the key/SSH path;
-GH013 indicates repository rules. Do not disable protections globally or add a
-second release-preparation PR flow to work around missing release credentials.
-
-After publication, verify `Deploy release` and the live deployed revision, then
-confirm the music export returns HTTP 200 and advances its retained date. Do not
-reset the export cursor: successful scheduled runs should clear the backlog.
+After publication, verify `Deploy release` and the live deployed revision, then confirm the music export returns HTTP 200 and advances its retained date. Do not reset the export cursor: successful scheduled runs should clear the backlog.
