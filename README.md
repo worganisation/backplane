@@ -435,6 +435,20 @@ or needs daily-note context for a follow-up.
 | --- | --- | --- | --- | --- |
 | `date` | `date` (YYYY-MM-DD)? | no | `null` | Daily note date in YYYY-MM-DD. Defaults to today's local date. |
 
+#### `get_diary_day`
+
+Read latest collected observations and review notes for a date without collecting.
+
+Manual Diary/Journal text is available through get_daily_note. Preserve source
+uncertainty and missing measurements; a calendar entry is not proof of attendance.
+
+Returns:
+    Automatic diary data, or null when the day was never collected.
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `date` | `date` (YYYY-MM-DD) | yes | — |  |
+
 #### `get_diary_review`
 
 Read the exact daily review before discussing the diary notification.
@@ -760,6 +774,22 @@ After finding a hit, read entity notes with `get_vault_entity`, daily notes with
 | `kinds` | `domain` \| `person` \| `project` \| `resource` \| `task` \| `daily_note` \| `idea`[]? | no | `null` | Note kinds to search. Omit to search all kinds. |
 | `limit` | `integer` | no | `20` | Maximum number of hits to return. |
 | `query` | `string` | yes | — | Topic or phrase to match in note content. |
+
+#### `summarize_diary_period`
+
+Summarize 1 to 366 inclusive days of recorded metrics with coverage counts.
+
+Missing days are not zero. Report observed-day coverage with averages and totals.
+Weight is not additive. Current-day values are partial. This never queries live
+sources or generates prose. Use get_diary_day for events and get_daily_note for text.
+
+Returns:
+    Deterministic metrics and explicit gaps from latest collected snapshots.
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `end` | `date` (YYYY-MM-DD) | yes | — |  |
+| `start` | `date` (YYYY-MM-DD) | yes | — |  |
 
 #### `update_vault_entity`
 
