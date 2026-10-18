@@ -132,7 +132,9 @@ async def test__capture_replay_repairs_card_using_current_task_status(
 ) -> None:
     """Replaying an old capture cannot put a completed task back in Backlog."""
     created = await TaskService.create_task(
-        "Task", idempotency_key="capture", enrich_metadata=False
+        "Task",
+        idempotency_key="capture",
+        enrich_metadata=False,
     )
     task = (await list_tasks())[0]
     completed = await update_task(task.id, TaskUpdate(status="done"))
@@ -142,7 +144,9 @@ async def test__capture_replay_repairs_card_using_current_task_status(
     await board.parent.mkdir(parents=True, exist_ok=True)
     await board.write_text("## Backlog\n\n## Done\n")
     replay = await TaskService.create_task(
-        "Task", idempotency_key="capture", enrich_metadata=False
+        "Task",
+        idempotency_key="capture",
+        enrich_metadata=False,
     )
     assert replay.replayed
     assert not replay.warnings

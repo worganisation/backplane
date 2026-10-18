@@ -1138,7 +1138,7 @@ async def _ensure_task_board_card(note_path: AsyncPath) -> None:
         task = await read_task(note_path)
         if task is None or task.status not in {"backlog", "doing", "done"}:
             raise exc.UserError(
-                message="Read and repair the task metadata before updating its board."
+                message="Read and repair the task metadata before updating its board.",
             )
 
         await reconcile_task_board(task)
