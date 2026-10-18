@@ -91,3 +91,29 @@ def test__task_frontmatter_defaults_fixed_task_fields() -> None:
         "tags": ["task"],
     }
     assert "id: task-20260525-213000\n" in frontmatter.model_dump_yaml()
+
+
+def test__task_ids_are_unique_with_identical_creation_times() -> None:
+    """Distinct tasks created within one timestamp receive independent UUID identities."""
+    notes = [
+        _build_task_note(
+            title="Check roof",
+            now=dt.datetime(2026, 10, 18, tzinfo=dt.UTC),
+            metadata=TaskMetadata(
+                title="Check roof",
+                domains=[],
+                resources=[],
+                projects=[],
+                people=[],
+            ),
+            capture=None,
+            description="Check roof",
+            due=None,
+        )
+        for _ in range(2)
+    ]
+    identifiers = [
+        next(line for line in note.splitlines() if line.startswith("id:"))
+        for note in notes
+    ]
+    assert identifiers[0] != identifiers[1]

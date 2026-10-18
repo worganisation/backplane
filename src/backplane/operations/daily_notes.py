@@ -3,38 +3,126 @@
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
+import json
 from typing import TYPE_CHECKING
+
+from pydantic import TypeAdapter
 
 from backplane.services.ideas import IdeaService
 from backplane.services.obsidian import ObsidianService
-from backplane.utils import SETTINGS, exc, format_human_date, today
+from backplane.utils import (
+    SETTINGS,
+    VAULT_PATHS,
+    MarkdownDocument,
+    exc,
+    format_human_date,
+    resolve_under_root,
+    today,
+)
+from backplane.utils.helpers.files import vault_write_lock
 
 if TYPE_CHECKING:
     from backplane.services.vault_entities import UpdateMode
 
 
-async def record_diary(content: str, date: dt.date | None = None) -> str:
-    """Append a diary entry with a server-generated capture timestamp.
+async def record_diary(
+    content: str,
+    date: dt.date | None = None,
+    *,
+    idempotency_key: str | None = None,
+) -> str:
+    """Append a timestamped diary entry and its retry receipt in one atomic note write.
 
     Returns:
-        A short confirmation after the note is saved.
+        The original saved date, including for retries after midnight.
 
     Raises:
-        BadRequestError: If the entry contains no text.
-    """
-    if not content.strip():
-        msg = "Diary content must not be blank."
-        raise exc.BadRequestError(msg)
+        BadRequestError: The content or supplied key is blank.
+        ConflictError: A key is reused with different input.
+    """  # ruff: ignore[docstring-extraneous-exception] -- The receipt lookup raises conflicts.
+    if not content.strip() or (
+        idempotency_key is not None and not idempotency_key.strip()
+    ):
+        message = "Diary content and any idempotency key must not be blank."
+        raise exc.BadRequestError(message)
 
+    key = (
+        hashlib.sha256(idempotency_key.encode()).hexdigest()
+        if idempotency_key is not None
+        else None
+    )
+    fingerprint = hashlib.sha256(
+        json.dumps([content, date.isoformat() if date else None]).encode(),
+    ).hexdigest()
     captured_at = dt.datetime.now(SETTINGS.local_timezone)
     resolved_date = date or captured_at.date()
-    _ = await update_daily_note_section(
-        heading_path=("Diary",),
-        content=f"Recorded {captured_at:%Y-%m-%d %H:%M %z} — {content}",
-        create_section_if_not_exists=True,
-        date=resolved_date,
-    )
+
+    async with vault_write_lock():
+        if key is not None and (saved_date := await _saved_diary_date(key, fingerprint)):
+            return f"Diary entry saved to {saved_date}."
+
+        async with ObsidianService().daily_note(
+            date=resolved_date,
+            create_if_not_exists=True,
+            read_only=False,
+        ) as note:
+            section = note.get_section(
+                (format_human_date(resolved_date), "Diary"),
+                create_if_not_exists=True,
+            )
+            section.append_content(
+                f"Recorded {captured_at:%Y-%m-%d %H:%M %z} — {content}",
+            )
+            if key is not None:
+                receipts = _diary_receipts(note)
+                receipts[key] = fingerprint
+                note.frontmatter["backplane_diary_captures"] = json.dumps(receipts)
+
     return f"Diary entry saved to {resolved_date.isoformat()}."
+
+
+def _diary_receipts(note: MarkdownDocument) -> dict[str, str]:
+    """Read durable retry receipts stored alongside the diary text.
+
+    Returns:
+        Operation-key digests mapped to original request fingerprints.
+    """
+    raw = note.frontmatter.get("backplane_diary_captures", "{}")
+    return TypeAdapter(dict[str, str]).validate_json(str(raw))
+
+
+async def _saved_diary_date(key: str, fingerprint: str) -> str | None:
+    """Find a receipt across dates while holding the vault lock.
+
+    Returns:
+        The saved note date, or None for a new operation.
+
+    Raises:
+        ConflictError: The key belongs to a different request.
+    """
+    directory = await resolve_under_root(VAULT_PATHS.daily_notes_dir)
+    if not await directory.is_dir():
+        return None
+
+    async for path in directory.iterdir():
+        if path.suffix != ".md" or not await path.is_file():
+            continue
+
+        async with MarkdownDocument(
+            vault_path=VAULT_PATHS.daily_notes_dir / path.name,
+            read_only=True,
+        ) as note:
+            receipts = _diary_receipts(note)
+        if key not in receipts:
+            continue
+
+        if receipts[key] != fingerprint:
+            message = "Idempotency key already used with different diary input."
+            raise exc.ConflictError(message)
+        return path.stem
+
+    return None
 
 
 async def read_daily_note(date: dt.date | None = None) -> str:
@@ -112,11 +200,11 @@ async def update_daily_note_section(
     return section.render()
 
 
-async def record_idea(idea: str) -> str:
+async def record_idea(idea: str, *, idempotency_key: str | None = None) -> str:
     """Record an idea in the timestamped idea inbox.
 
     Returns:
         Confirmation message for the capture.
     """
-    capture = await IdeaService.record(idea)
+    capture = await IdeaService.record(idea, idempotency_key=idempotency_key)
     return f"Idea recorded successfully. ID: {capture.id}"

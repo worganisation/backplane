@@ -11,6 +11,7 @@ import operator
 from dataclasses import dataclass
 from functools import cache
 from typing import Annotated, Final, Literal, final
+from uuid import uuid4
 
 from loguru import logger
 from pydantic import BaseModel, Field
@@ -658,6 +659,7 @@ async def _extract_metadata(
         logger.exception("Metadata extraction failed; using defaults")
         fallback = TaskMetadata(
             title=title or (fallback_description or description)[:60],
+            priority=priority or enums.Priority.MEDIUM,
             domains=[],
             resources=[],
             projects=[],
@@ -700,6 +702,7 @@ def _build_task_note(
     capture: Capture | None,
     description: str,
     due: str | None,
+    project_links: list[str] | None = None,
 ) -> str:
     """Build the full markdown string for a new task note.
 
@@ -710,13 +713,14 @@ def _build_task_note(
         capture: Linked inbox entry, or None if the task was created directly.
         description: Current task description, authoritative even with a linked capture.
         due: Optional due date string (YYYY-MM-DD).
+        project_links: Resolved links to existing project filenames.
 
     Returns:
         Complete markdown string including YAML frontmatter.
     """
-    timestamp = now.strftime("%Y-%m-%dT%H:%M:%S")
+    timestamp = now.isoformat()
     fm = TaskFrontmatter(
-        id=f"task-{now.strftime('%Y%m%d')}-{now.strftime('%H%M%S')}",
+        id=f"task-{uuid4()}",
         created=timestamp,
         updated=timestamp,
         source_capture=capture.id if capture else None,
@@ -727,7 +731,9 @@ def _build_task_note(
         ),
         domains=_entity_wikilinks(enums.VaultEntityKind.DOMAIN, metadata.domains),
         resources=_entity_wikilinks(enums.VaultEntityKind.RESOURCE, metadata.resources),
-        projects=_entity_wikilinks(enums.VaultEntityKind.PROJECT, metadata.projects),
+        projects=project_links
+        if project_links is not None
+        else _entity_wikilinks(enums.VaultEntityKind.PROJECT, metadata.projects),
         people=_entity_wikilinks(enums.VaultEntityKind.PERSON, metadata.people),
         priority=metadata.priority,
         effort=metadata.effort,
@@ -1003,13 +1009,29 @@ async def _create_task_note(
     Returns:
         Relative path to the created task note within the vault.
     """
+    project_links: list[str] = []
+    for name in metadata.projects:
+        path = await VaultEntityService.resolve_entity_path(
+            enums.VaultEntityKind.PROJECT,
+            name,
+        )
+        project_links.append(
+            build_obsidian_link(
+                enums.VaultEntityKind.PROJECT.vault_dir / path.name,
+                alias=name,
+            )
+            if path is not None
+            else build_entity_wikilink(enums.VaultEntityKind.PROJECT, name),
+        )
+
     note_content = _build_task_note(
         title=metadata.title,
-        now=dt.datetime.now(tz=dt.UTC).astimezone(),
+        now=dt.datetime.now(SETTINGS.local_timezone),
         metadata=metadata,
         capture=capture,
         description=description,
         due=due,
+        project_links=project_links,
     )
 
     if intake is not None and intake.key_digest is not None:
@@ -1204,6 +1226,26 @@ async def _finish_task_intake(
     )
 
 
+async def _canonical_project(project: str) -> str:
+    """Prefer an existing project's exact display name without fuzzy assignment.
+
+    Returns:
+        The existing display name or the explicitly requested new project name.
+
+    Raises:
+        BadRequestError: The project name is blank.
+    """
+    if not (requested := project.strip()):
+        msg = "project must not be blank."
+        raise exc.BadRequestError(msg)
+
+    names = await VaultEntityService.list_entities(enums.VaultEntityKind.PROJECT)
+    return next(
+        (name for name in names if name.casefold() == requested.casefold()),
+        requested,
+    )
+
+
 @final
 class TaskService:
     """Service for creating structured task notes."""
@@ -1217,6 +1259,7 @@ class TaskService:
         link_capture_id: str | None = None,
         idempotency_key: str | None = None,
         *,
+        project: str | None = None,
         enrich_metadata: bool = True,
     ) -> CreateTaskResult:
         """Create a task note from a description and return its vault details.
@@ -1230,6 +1273,7 @@ class TaskService:
             priority (enums.Priority | None): Priority override (low, medium, or high).
             link_capture_id (str | None): Exact capture ID to link when a specific inbox entry has been confirmed.
             idempotency_key (str | None): Stable caller key reused only for retries of identical input.
+            project: Explicit project name, overriding inferred projects; creates a stub if absent.
             enrich_metadata: Extract metadata and match inbox captures.
                 False saves a plain task without model calls.
 
@@ -1268,6 +1312,9 @@ class TaskService:
             priority,
             link_capture_id,
         ])
+        if project is not None:
+            fingerprint_input += json.dumps({"project": project})
+
         if not enrich_metadata:
             fingerprint_input = "capture_task:" + fingerprint_input
 
@@ -1296,6 +1343,9 @@ class TaskService:
                 projects=[],
                 people=[],
             )
+
+        if project is not None:
+            metadata.projects = [await _canonical_project(project)]
 
         intake = _TaskIntake(
             key_digest=key_digest,

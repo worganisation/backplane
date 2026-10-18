@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import datetime as dt
+import json
 import math
+from collections import Counter
 from typing import Annotated
 
 import aiohttp
@@ -49,7 +51,10 @@ class CalendarEvent(BaseModel):
     start: CalendarBoundary
     end: CalendarBoundary
     summary: str
-    status: str = "confirmed"
+    status: str | None = "confirmed"
+    uid: str | None = None
+    recurrence_id: str | None = None
+    rrule: str | None = None
 
 
 class CalendarEvents(BaseModel):
@@ -370,9 +375,16 @@ def _calendar_entries(
             if began is not None and began >= midnight:
                 continue
             key = f"{event.start.model_dump_json()}:{event.end.model_dump_json()}:{event.summary}"
+            legacy_id = entry_id(calendar, key)
+            if event.uid:
+                occurrence = event.recurrence_id
+                if occurrence is None and event.rrule:
+                    occurrence = began.isoformat() if began else str(event.start.date)
+                key = json.dumps([event.uid, occurrence])
             entries.append(
                 DiaryEntry(
                     id=entry_id(calendar, key),
+                    aliases=[legacy_id] if event.uid else [],
                     source=calendar,
                     kind="calendar",
                     text=f"Scheduled: {event.summary}",
@@ -385,7 +397,15 @@ def _calendar_entries(
                     ),
                 ),
             )
-    return entries
+    alias_counts = Counter(alias for entry in entries for alias in entry.aliases)
+    return [
+        entry.model_copy(
+            update={
+                "aliases": [alias for alias in entry.aliases if alias_counts[alias] == 1],
+            },
+        )
+        for entry in entries
+    ]
 
 
 async def collect_day(date: dt.date) -> DiarySnapshot:

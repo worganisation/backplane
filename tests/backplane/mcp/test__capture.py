@@ -30,9 +30,22 @@ async def test_capture_surface_saves_diary_and_rejects_general_tools(
             "record_idea",
             "capture_task",
         }
+        for tool in tools:
+            assert "idempotency_key" in tool.input_schema["required"]
+        with pytest.raises(ToolError):
+            await client.call_tool("record_idea", {"idea": "Missing key"})
+        with pytest.raises(ToolError):
+            await client.call_tool(
+                "record_idea",
+                {"idea": "Null key", "idempotency_key": None},
+            )
         result = await client.call_tool(
             "record_diary",
-            {"content": "Walked the dog for 25 minutes at 16:00.", "date": "2026-10-17"},
+            {
+                "content": "Walked the dog for 25 minutes at 16:00.",
+                "date": "2026-10-17",
+                "idempotency_key": "voice-diary-1",
+            },
         )
         assert not result.is_error
         with pytest.raises(ToolError, match="Unknown tool"):

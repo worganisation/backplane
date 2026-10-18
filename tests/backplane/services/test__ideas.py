@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import datetime as dt
 from typing import TYPE_CHECKING
 
@@ -184,3 +185,38 @@ async def test__new_task_links_to_original_idea(obsidian_vault: AsyncPath) -> No
 
     assert f"source_capture: {idea.id}" in note
     assert f"source_capture_link: '[[Inbox/Ideas/{idea.id}|{idea.id}]]'" in note
+
+
+async def test__idea_retries_preserve_one_identity_and_reject_changed_text(
+    obsidian_vault: AsyncPath,
+) -> None:
+    """Concurrent retries use the same immutable note; a new key is a separate capture."""
+    _ = obsidian_vault
+    captures = await asyncio.gather(
+        *(
+            IdeaService.record("Maybe build this\n", idempotency_key="idea-request-1")
+            for _ in range(3)
+        ),
+    )
+    assert captures == [captures[0]] * 3
+    assert await IdeaService.list_ideas() == [captures[0]]
+    with pytest.raises(exc.ConflictError):
+        await IdeaService.record("Changed idea", idempotency_key="idea-request-1")
+    second = await IdeaService.record(
+        "Maybe build this\n",
+        idempotency_key="idea-request-2",
+    )
+    assert second.id != captures[0].id
+
+
+@pytest.mark.parametrize(("idea", "key"), [(" ", "valid"), ("An idea", " ")])
+async def test__idea_rejects_empty_capture_or_key(
+    obsidian_vault: AsyncPath,
+    idea: str,
+    key: str,
+) -> None:
+    """Invalid requests never create an idea note."""
+    _ = obsidian_vault
+    with pytest.raises(exc.BadRequestError):
+        await IdeaService.record(idea, idempotency_key=key)
+    assert await IdeaService.list_ideas() == []

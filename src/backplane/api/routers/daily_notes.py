@@ -68,7 +68,10 @@ async def create_idea(request: IdeaRequest) -> RecordIdeaResponse:
     Returns:
         Idea-capture confirmation response.
     """
-    capture = await IdeaService.record(request.idea)
+    capture = await IdeaService.record(
+        request.idea,
+        idempotency_key=request.idempotency_key,
+    )
     return RecordIdeaResponse(message="Idea recorded successfully.", id=capture.id)
 
 

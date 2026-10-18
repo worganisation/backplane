@@ -46,7 +46,9 @@ _GET_DAILY_NOTE_DESCRIPTION = """Read the user's Obsidian daily note.
 Use when the user asks what is in the daily note, wants to review captured tasks/ideas/notes,
 or needs daily-note context for a follow-up."""
 
-_RECORD_IDEA_DESCRIPTION = """Record a loose, non-actionable idea in the Obsidian idea inbox.
+_RECORD_IDEA_DESCRIPTION = """Supply a unique idempotency_key and reuse identical input on retry.
+
+Record a loose, non-actionable idea in the Obsidian idea inbox.
 
 Use for speculative captures such as:
 - "maybe…"
@@ -169,16 +171,24 @@ async def record_diary(
         dt.date | None,
         Field(description="YYYY-MM-DD; omit for today."),
     ] = None,
+    idempotency_key: Annotated[
+        str | None,
+        Field(
+            min_length=1,
+            description="Unique operation key; reuse identical input on retry.",
+        ),
+    ] = None,
 ) -> str:
     """Save a personal experience or completed activity to Diary in the daily note.
 
-    Appends without reading first. The server adds the capture timestamp; do not add one yourself.
+    Supply a unique idempotency_key and reuse identical input on retry.
+    Appends without a prior read by the caller. The server adds the capture timestamp.
     Use record_idea for possibilities and capture_task for actions to do.
 
     Returns:
         Confirmation after the entry is saved.
     """
-    return await record_diary_operation(content, date)
+    return await record_diary_operation(content, date, idempotency_key=idempotency_key)
 
 
 async def record_idea(
@@ -192,6 +202,13 @@ async def record_idea(
             ),
         ),
     ],
+    idempotency_key: Annotated[
+        str | None,
+        Field(
+            min_length=1,
+            description="Unique operation key; reuse identical input on retry.",
+        ),
+    ] = None,
 ) -> str:
     """Record a new idea in the Obsidian idea inbox.
 
@@ -199,7 +216,7 @@ async def record_idea(
         Confirmation including the stable capture ID.
     """
     logger.info("record_idea")
-    return await record_idea_operation(idea)
+    return await record_idea_operation(idea, idempotency_key=idempotency_key)
 
 
 async def list_ideas(
