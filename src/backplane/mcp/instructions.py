@@ -5,6 +5,12 @@ from __future__ import annotations
 BACKPLANE_MCP_INSTRUCTIONS = """Backplane manages the user's Obsidian vault.
 
 Tool routing:
+- Use `list_review_submissions` to find received phone replies awaiting a completed save.
+- Use `get_review_submission` to read an exact stored reply and its original prompt ID.
+- Use `archive_review_submission` only when explicitly asked to dismiss a handled inbox item.
+- Use `retry_review_submission` only on request to recover an unresolved reply.
+- Use `save_review_submission` for a claimed submission; never use other save tools for it.
+  Preserve its attempt ID and exact prompt. Only status=saved confirms export completion.
 - When the user refers to an idea notification, call `get_idea_followup` to retrieve
   its exact idea and prompt IDs. Save elaboration with `save_idea_elaboration`;
   do not record it as a new idea or create tasks/projects without explicit commitment.

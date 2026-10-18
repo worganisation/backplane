@@ -293,3 +293,50 @@ class CaptureResponseRow(ContextBase):
         nullable=False,
         default=utc_now,
     )
+
+
+@final
+class ReviewSubmissionRow(ContextBase):
+    """Immutable incoming reply with a fenced processing attempt and export receipt."""
+
+    __tablename__ = "review_submissions"
+    __table_args__: tuple[SchemaItem, ...] = (
+        UniqueConstraint("idempotency_key", name="uq_review_submissions_key"),
+        CheckConstraint("kind IN ('diary', 'idea')", name="ck_review_submissions_kind"),
+        CheckConstraint(
+            "status IN ('pending', 'processing', 'needs_attention', 'saved')",
+            name="ck_review_submissions_status",
+        ),
+        Index("ix_review_submissions_status_created", "status", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    idempotency_key: Mapped[str] = mapped_column(String(200), nullable=False)
+    request_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    prompt_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey("capture_prompts.id"),
+        nullable=False,
+    )
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    conversation_id: Mapped[str | None] = mapped_column(String(128))
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="pending")
+    attempt_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    archived_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
+    started_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
+    resolution: Mapped[JsonObject | None] = mapped_column(JSON)
+    result: Mapped[str | None] = mapped_column(Text)
+    assistant_reply: Mapped[str | None] = mapped_column(Text)
+    error: Mapped[str | None] = mapped_column(String(500))
+    created_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+    )
+    updated_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+        onupdate=utc_now,
+    )

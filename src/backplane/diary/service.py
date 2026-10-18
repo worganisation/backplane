@@ -99,7 +99,11 @@ class DiaryService(ContextCaptureService):
                     CapturePromptRow.idempotency_key == date.isoformat(),
                     CaptureResponseRow.response_kind == "diary_review",
                 )
-                .order_by(CaptureResponseRow.created_at),
+                .order_by(
+                    CaptureResponseRow.responded_at,
+                    CaptureResponseRow.created_at,
+                    CaptureResponseRow.id,
+                ),
             )
         ).all()
         return [DiaryReviewResponse.model_validate(row.payload) for row in rows]
@@ -395,6 +399,8 @@ class DiaryService(ContextCaptureService):
         self,
         prompt_id: uuid.UUID,
         response: DiaryReviewResponse,
+        *,
+        responded_at: dt.datetime | None = None,
     ) -> str:
         """Persist explicit decisions before export; identical retries repair the note.
 
@@ -402,13 +408,37 @@ class DiaryService(ContextCaptureService):
             Acknowledgement after storage and export.
 
         Raises:
-            BadRequestError: The date or explicit decisions are invalid.
             NotFoundError: The requested diary or review does not exist.
         """
         review = await self.get_review(prompt_id)
         if review is None:
             message = "Diary review not found."
             raise exc.NotFoundError(message)
+
+        self.validate_response(review, response)
+
+        _ = await self.respond(
+            prompt_id,
+            CapturePromptResponseRequest(
+                idempotency_key=response.request_id,
+                response_kind="diary_review",
+                text=response.note,
+                payload=response.model_dump(mode="json"),
+                responded_at=responded_at,
+            ),
+        )
+        _ = await self.render(review.snapshot.date)
+        await self.narrate(review.snapshot.date)
+        _ = await self.render(review.snapshot.date)
+        return f"Diary review saved for {review.snapshot.date}."
+
+    @staticmethod
+    def validate_response(review: DiaryReview, response: DiaryReviewResponse) -> None:
+        """Validate decisions against the exact pinned notification before persistence.
+
+        Raises:
+            BadRequestError: Decisions reference invalid entries or contain no response.
+        """
         entries = {e.id: e for e in review.snapshot.entries}
         if len({d.entry_id for d in response.decisions}) != len(response.decisions):
             message = "Each diary entry may have only one decision per response."
@@ -426,16 +456,3 @@ class DiaryService(ContextCaptureService):
         if not response.decisions and not response.note.strip():
             message = "A diary response needs a decision or a note."
             raise exc.BadRequestError(message)
-        _ = await self.respond(
-            prompt_id,
-            CapturePromptResponseRequest(
-                idempotency_key=response.request_id,
-                response_kind="diary_review",
-                text=response.note,
-                payload=response.model_dump(mode="json"),
-            ),
-        )
-        _ = await self.render(review.snapshot.date)
-        await self.narrate(review.snapshot.date)
-        _ = await self.render(review.snapshot.date)
-        return f"Diary review saved for {review.snapshot.date}."
