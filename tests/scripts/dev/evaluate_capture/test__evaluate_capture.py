@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING
 
-from scripts.dev.evaluate_capture import evaluate
+from scripts.dev.evaluate_capture import ROOT, evaluate
 
 if TYPE_CHECKING:
     import pytest
@@ -28,7 +28,13 @@ async def test__evaluate_reports_transport_failures_without_writes(
     assert await evaluate(model="local-test-model") == 1
 
     report = json.loads(capsys.readouterr().out)
-    assert report["failed"] == len(ollama_requests) == 9
+    assert (
+        report["failed"]
+        == len(ollama_requests)
+        == len(
+            json.loads((ROOT / "scripts/fixtures/capture-evaluation.json").read_text()),
+        )
+    )
     assert all(request["model"] == "local-test-model" for request in ollama_requests)
     assert all("tools" in request for request in ollama_requests)
     mock_diary.assert_not_called()
@@ -80,6 +86,8 @@ async def test__evaluate_never_executes_successful_tool_proposals(
     assert await evaluate() == 1
 
     report = json.loads(capsys.readouterr().out)
-    assert len(ollama_requests) == 9
+    assert len(ollama_requests) == len(
+        json.loads((ROOT / "scripts/fixtures/capture-evaluation.json").read_text()),
+    )
     assert all(case["response"] is not None for case in report["cases"])
     mock_diary.assert_not_called()
