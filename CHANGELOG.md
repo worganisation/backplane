@@ -2,6 +2,18 @@
 
 <!-- version list -->
 
+## v0.11.1 (2026-10-18)
+
+### Bug Fixes
+
+- Make captures dependable and preserve explicit project assignments
+  ([#127](https://github.com/worganisation/backplane/pull/127),
+  [`8c1ab11`](https://github.com/worganisation/backplane/commit/8c1ab1156e64f72eb2dbf34c63b1359780c1c073))
+
+- **ci**: Deploy releases over LAN SSH ([#126](https://github.com/worganisation/backplane/pull/126),
+  [`b8cd1ef`](https://github.com/worganisation/backplane/commit/b8cd1eface02a4b50ce7590dc191d595abd24771))
+
+
 ## v0.11.0 (2026-10-18)
 
 ### Features
