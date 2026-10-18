@@ -33,6 +33,9 @@ Tool routing:
   requests when those tools are available to the current client.
 
 General rules:
+- Use a unique `idempotency_key` for every diary, idea or task capture. Reuse the original
+  key and identical fields on retry; a new key creates a new capture.
+- Pass an explicitly named project through `project`; omit it for projectless capture.
 - Prefer `find_vault_notes` for name-like queries and `search_vault_notes` for topical
   or phrase queries. Use `list_vault_entities` only when the user wants every note of
   one entity kind.

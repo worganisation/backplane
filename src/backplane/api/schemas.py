@@ -110,6 +110,8 @@ class IdeaRequest(BaseModel, frozen=True):
 
     idea: str
 
+    idempotency_key: Annotated[str | None, Field(min_length=1)] = None
+
 
 class MoveNoteRequest(BaseModel, frozen=True):
     """Request to move a vault-relative Markdown note."""
@@ -125,6 +127,7 @@ class CreateTaskRequest(BaseModel, frozen=True):
     title: str | None = None
     due: str | None = None
     priority: Priority | None = None
+    project: Annotated[str | None, Field(min_length=1)] = None
     link_capture_id: str | None = None
     idempotency_key: Annotated[str | None, Field(min_length=1)] = None
 

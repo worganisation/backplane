@@ -44,10 +44,14 @@ def reviewed_entries(
     Returns:
         Observations with explicit user decisions applied.
     """
-    decisions = {d.entry_id: d.outcome for r in responses for d in r.decisions}
+    decisions = [d for response in responses for d in response.decisions]
     result: list[DiaryEntry] = []
     for entry in snapshot.entries:
-        outcome = decisions.get(entry.id)
+        identities = {entry.id, *entry.aliases}
+        outcome = next(
+            (d.outcome for d in reversed(decisions) if d.entry_id in identities),
+            None,
+        )
         if outcome == "dismissed":
             continue
         text = entry.text

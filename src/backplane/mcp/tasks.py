@@ -107,6 +107,12 @@ async def create_task(
             ),
         ),
     ] = None,
+    project: Annotated[
+        str | None,
+        Field(
+            description="Explicit project name; creates a stub if absent. Omit for no explicit assignment.",
+        ),
+    ] = None,
     idempotency_key: Annotated[
         str | None,
         Field(
@@ -140,6 +146,7 @@ async def create_task(
         priority=priority,
         link_capture_id=link_capture_id,
         idempotency_key=idempotency_key,
+        project=project,
     )
 
     outcome = task_creation_outcome(task)
@@ -198,6 +205,12 @@ async def capture_task(
         Field(description="Explicit YYYY-MM-DD deadline only."),
     ] = None,
     priority: enums.Priority | None = None,
+    project: Annotated[
+        str | None,
+        Field(
+            description="Explicit project name; creates a stub if absent. Omit for no explicit assignment.",
+        ),
+    ] = None,
     idempotency_key: Annotated[
         str | None,
         Field(
@@ -209,7 +222,8 @@ async def capture_task(
     """Quickly save an action to do as a task and add its board card, without calling another model.
 
     Prefer for voice capture: 'I need to', 'I should', or 'add a task'. No project is required.
-    Preserves original text; does not infer entity links or schedule reminders or later enrichment.
+    Preserves original text and explicit project; does not infer entity links,
+    schedule reminders or arrange later enrichment.
     Use create_task only when metadata enrichment or a confirmed idea link is requested.
     Reuse the same idempotency_key and fields on retries; report any returned warnings.
 
@@ -222,6 +236,7 @@ async def capture_task(
         due=due,
         priority=priority,
         idempotency_key=idempotency_key,
+        project=project,
         enrich_metadata=False,
     )
     return task_creation_outcome(task)

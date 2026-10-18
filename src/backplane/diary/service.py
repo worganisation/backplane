@@ -32,7 +32,12 @@ from backplane.context.tables import (
     ContextEventRow,
 )
 from backplane.diary.collector import collect_day, day_bounds
-from backplane.diary.models import DiaryReviewResponse, DiarySnapshot, DiarySyncResult
+from backplane.diary.models import (
+    DiaryReviewResponse,
+    DiarySnapshot,
+    DiarySyncResult,
+    retain_entry_aliases,
+)
 from backplane.diary.render import export_day, facts_text, generate_narrative
 from backplane.services.context_capture import ContextCaptureService
 from backplane.utils import SETTINGS, exc
@@ -106,6 +111,7 @@ class DiaryService(ContextCaptureService):
             previous = await self._latest(session, snapshot.date, "diary_snapshot")
             if previous:
                 saved = DiarySnapshot.model_validate(previous.payload)
+                snapshot = retain_entry_aliases(snapshot, saved)
                 if (
                     saved.collected_at > snapshot.collected_at
                     or saved.fingerprint() == snapshot.fingerprint()

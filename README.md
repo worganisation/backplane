@@ -226,6 +226,9 @@ Tool routing:
   requests when those tools are available to the current client.
 
 General rules:
+- Use a unique `idempotency_key` for every diary, idea or task capture. Reuse the original
+  key and identical fields on retry; a new key creates a new capture.
+- Pass an explicitly named project through `project`; omit it for projectless capture.
 - Prefer `find_vault_notes` for name-like queries and `search_vault_notes` for topical
   or phrase queries. Use `list_vault_entities` only when the user wants every note of
   one entity kind.
@@ -273,7 +276,8 @@ matching path or create the requested section when appropriate.
 Quickly save an action to do as a task and add its board card, without calling another model.
 
 Prefer for voice capture: 'I need to', 'I should', or 'add a task'. No project is required.
-Preserves original text; does not infer entity links or schedule reminders or later enrichment.
+Preserves original text and explicit project; does not infer entity links,
+schedule reminders or arrange later enrichment.
 Use create_task only when metadata enrichment or a confirmed idea link is requested.
 Reuse the same idempotency_key and fields on retries; report any returned warnings.
 
@@ -286,6 +290,7 @@ Returns:
 | `due` | `string`? | no | `null` | Explicit YYYY-MM-DD deadline only. |
 | `idempotency_key` | `string`? | no | `null` | Stable operation key; reuse unchanged input on retry. |
 | `priority` | `low` \| `medium` \| `high`? | no | `null` |  |
+| `project` | `string`? | no | `null` | Explicit project name; creates a stub if absent. Omit for no explicit assignment. |
 | `title` | `string`? | no | `null` | Optional short title; omit if not supplied. |
 
 #### `create_task`
@@ -321,6 +326,7 @@ If timing is implied but not explicit, leave `due=null` and keep the timing word
 | `idempotency_key` | `string`? | no | `null` | Stable operation key; reuse with identical input on retry. |
 | `link_capture_id` | `string`? | no | `null` | Confirmed inbox capture ID to link. Omit unless the user confirmed the capture. |
 | `priority` | `low` \| `medium` \| `high`? | no | `null` | Optional priority override. Only set when explicit. |
+| `project` | `string`? | no | `null` | Explicit project name; creates a stub if absent. Omit for no explicit assignment. |
 | `title` | `string`? | no | `null` | Optional title override. Omit unless the user supplied a clear title. |
 
 #### `create_vault_entity`
@@ -565,7 +571,8 @@ Return ordered results after recording an observation batch atomically.
 
 Save a personal experience or completed activity to Diary in the daily note.
 
-Appends without reading first. The server adds the capture timestamp; do not add one yourself.
+Supply a unique idempotency_key and reuse identical input on retry.
+Appends without a prior read by the caller. The server adds the capture timestamp.
 Use record_idea for possibilities and capture_task for actions to do.
 
 Returns:
@@ -575,8 +582,11 @@ Returns:
 | --- | --- | --- | --- | --- |
 | `content` | `string` | yes | — | Diary text, preserving words, quantities and event times. |
 | `date` | `date` (YYYY-MM-DD)? | no | `null` | YYYY-MM-DD; omit for today. |
+| `idempotency_key` | `string`? | no | `null` | Unique operation key; reuse identical input on retry. |
 
 #### `record_idea`
+
+Supply a unique idempotency_key and reuse identical input on retry.
 
 Record a loose, non-actionable idea in the Obsidian idea inbox.
 
@@ -596,6 +606,7 @@ Convert spoken phrasing to a written sentence while preserving the user's wordin
 | Parameter | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `idea` | `string` | yes | — | The loose, non-actionable idea to record. Preserve the user's wording as closely as possible. |
+| `idempotency_key` | `string`? | no | `null` | Unique operation key; reuse identical input on retry. |
 
 #### `respond_to_capture_prompt`
 

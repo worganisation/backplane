@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from backplane.mcp.tasks import capture_task
-from backplane.services.tasks import TaskService
+from backplane.services.tasks import TaskMetadata, TaskService
 from backplane.utils import VAULT_PATHS, enums, exc
 
 if TYPE_CHECKING:
@@ -112,3 +112,68 @@ async def test__capture_task__rejects_invalid_input_before_writing(
         )
 
     assert not await (obsidian_vault / VAULT_PATHS.task_notes_dir).exists()
+
+
+async def test__explicit_project_uses_existing_note_and_retries_preserve_assignment(
+    obsidian_vault: AsyncPath,
+) -> None:
+    """A case-insensitive project name links to its real filename without inference."""
+    path = obsidian_vault / VAULT_PATHS.projects_dir / "solar-plan.md"
+    await path.parent.mkdir(parents=True, exist_ok=True)
+    await path.write_text("# Solar Plan\n\n## Related Tasks\n")
+    first = await capture_task(
+        "Check roof",
+        project="solar plan",
+        idempotency_key="roof-1",
+    )
+    second = await capture_task(
+        "Check roof",
+        project="solar plan",
+        idempotency_key="roof-1",
+    )
+    assert first.metadata.path == second.metadata.path
+    assert (
+        "[[Projects/solar-plan|Solar Plan]]"
+        in await (obsidian_vault / first.metadata.path).read_text()
+    )
+    with pytest.raises(exc.ConflictError):
+        await capture_task(
+            "Check roof",
+            project="Another Project",
+            idempotency_key="roof-1",
+        )
+
+
+async def test__explicit_new_project_creates_stub_and_blank_project_is_rejected(
+    obsidian_vault: AsyncPath,
+) -> None:
+    """A named new project gets a stub; accidental blank assignment never saves a task."""
+    await capture_task("Check roof", project="Solar Plan", idempotency_key="roof-2")
+    assert await (obsidian_vault / VAULT_PATHS.projects_dir / "Solar Plan.md").exists()
+    with pytest.raises(exc.BadRequestError):
+        await capture_task("Check roof", project=" ")
+
+
+async def test__explicit_project_overrides_model_assignment(
+    obsidian_vault: AsyncPath,
+    mocker: MockerFixture,
+) -> None:
+    """Enrichment cannot replace the user's explicitly selected project."""
+    _ = mocker.patch(
+        "backplane.services.tasks._extract_metadata",
+        return_value=TaskMetadata(
+            title="Check roof",
+            projects=["Wrong project"],
+            domains=[],
+            resources=[],
+            people=[],
+        ),
+    )
+    saved = await TaskService.create_task(
+        "Check roof",
+        project="Solar Plan",
+        idempotency_key="roof-3",
+    )
+    note = await (obsidian_vault / saved.metadata.path).read_text()
+    assert "[[Projects/Solar Plan|Solar Plan]]" in note
+    assert "Wrong project" not in note

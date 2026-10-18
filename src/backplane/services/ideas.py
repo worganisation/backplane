@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 from dataclasses import dataclass
 from typing import Final, Literal, final
-from uuid import uuid4
+from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from pydantic import BaseModel
 
@@ -21,6 +22,7 @@ from backplane.utils import (
     resolve_under_root,
     today,
 )
+from backplane.utils.helpers.files import vault_write_lock
 
 MAX_IDEA_PAGE_SIZE: Final = 100
 IDEA_NOTES_DIR: Final = VAULT_PATHS.inbox_dir / "Ideas"
@@ -115,17 +117,47 @@ class IdeaService:
     """Record immutable idea notes and retrieve both distinct and legacy captures."""
 
     @staticmethod
-    async def record(idea: str) -> IdeaCapture:
+    async def record(idea: str, *, idempotency_key: str | None = None) -> IdeaCapture:
         """Store original capture text under a collision-resistant identity.
 
         Returns:
             The recorded individual idea.
+
+        Raises:
+            BadRequestError: The idea or supplied key is blank.
+            ConflictError: A key is reused with different text.
         """
-        now = dt.datetime.now(tz=SETTINGS.local_timezone)
-        capture_id = f"idea-{uuid4()}"
+        if not idea.strip() or (
+            idempotency_key is not None and not idempotency_key.strip()
+        ):
+            message = "Idea and any idempotency key must not be blank."
+            raise exc.BadRequestError(message)
+
+        identity = (
+            uuid5(NAMESPACE_URL, "backplane:idea:" + idempotency_key)
+            if idempotency_key is not None
+            else uuid4()
+        )
+        capture_id = f"idea-{identity}"
         path = IDEA_NOTES_DIR / f"{capture_id}.md"
-        header = f"---\nid: {capture_id}\ncreated: {now.isoformat()}\n---\n"
-        await atomic_write_text(await resolve_under_root(path), header + idea)
+        fingerprint = hashlib.sha256(idea.encode()).hexdigest()
+        async with vault_write_lock():
+            resolved = await resolve_under_root(path)
+            if await resolved.exists():
+                raw = await resolved.read_text(encoding="utf-8")
+                header, _, _text = raw.partition("\n---\n")
+                if f"fingerprint: {fingerprint}" not in header.splitlines():
+                    message = "Idempotency key already used with different idea input."
+                    raise exc.ConflictError(message)
+                return await IdeaService.get_idea(capture_id)
+
+            now = dt.datetime.now(tz=SETTINGS.local_timezone)
+            header = (
+                f"---\nid: {capture_id}\ncreated: {now.isoformat()}\n"
+                f"fingerprint: {fingerprint}\n---\n"
+            )
+            await atomic_write_text(resolved, header + idea)
+
         return IdeaCapture(
             id=capture_id,
             date=now.date().isoformat(),

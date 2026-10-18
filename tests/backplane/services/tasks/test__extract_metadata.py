@@ -6,6 +6,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+import pytest
+
 from backplane.services.tasks import TaskMetadata, _extract_metadata
 from backplane.utils import enums
 
@@ -20,8 +22,10 @@ class FakeMetadataResult:
     output: TaskMetadata
 
 
+@pytest.mark.parametrize("priority", [None, enums.Priority.HIGH])
 async def test__extract_metadata_returns_defaults_when_agent_fails(
     mocker: MockerFixture,
+    priority: enums.Priority | None,
 ) -> None:
     """Agent failures fall back to deterministic task metadata."""
     _ = mocker.patch(
@@ -35,7 +39,7 @@ async def test__extract_metadata_returns_defaults_when_agent_fails(
     metadata = await _extract_metadata(
         "Install the hallway motion sensor",
         None,
-        None,
+        priority,
     )
 
     assert metadata == TaskMetadata(
@@ -44,7 +48,7 @@ async def test__extract_metadata_returns_defaults_when_agent_fails(
         resources=[],
         projects=[],
         people=[],
-        priority=enums.Priority.MEDIUM,
+        priority=priority or enums.Priority.MEDIUM,
         effort=enums.Effort.MEDIUM,
         next_action="",
     )

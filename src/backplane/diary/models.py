@@ -13,6 +13,7 @@ class DiaryEntry(BaseModel, frozen=True):
     """One source observation; identifiers remain stable across retries."""
 
     id: str
+    aliases: list[str] = Field(default_factory=list)
     source: str
     kind: Literal["calendar", "visit", "outing", "mood", "habit", "weight"]
     text: str
@@ -73,3 +74,25 @@ class DiarySyncResult(BaseModel, frozen=True):
 def entry_id(source: str, key: str) -> str:
     """Return an opaque ID for a source record or completed interval."""
     return hashlib.sha256(f"{source}:{key}".encode()).hexdigest()[:24]
+
+
+def retain_entry_aliases(
+    snapshot: DiarySnapshot,
+    previous: DiarySnapshot,
+) -> DiarySnapshot:
+    """Carry exact legacy review identities across revisions of the same source record.
+
+    Returns:
+        A snapshot retaining aliases only where identity matches unambiguously.
+    """
+    entries: list[DiaryEntry] = []
+    for entry in snapshot.entries:
+        matches = [
+            old for old in previous.entries if old.id in {entry.id, *entry.aliases}
+        ]
+        aliases = list(entry.aliases)
+        if len(matches) == 1:
+            aliases = sorted({*aliases, *matches[0].aliases, matches[0].id} - {entry.id})
+        entries.append(entry.model_copy(update={"aliases": aliases}))
+
+    return snapshot.model_copy(update={"entries": entries})
