@@ -20,6 +20,12 @@ After 20:30, a successful refresh can reserve one daily review when Will is home
 
 Notification replies carry the exact prompt ID to the configured general assistant with the Backplane LLM API and [`assist-prompt.jinja`](../deploy/assist-prompt.jinja). `get_diary_review` returns the exact notification snapshot and prior responses; `save_diary_review` records explicit decisions and verbatim additions, then regenerates the note and narrative. Reply actions preserve the returned conversation ID for clarification turns. The notification tap opens the selected general pipeline as a separate conversation; Android cannot pass notification context through the native Assist intent. The three-tool Capture pipeline does not expose these review tools. General-agent prompt configuration uses HA's supported configuration flow, as described in [voice capture](voice-capture.md).
 
+## Looking back
+
+`get_diary_day(date)` and authenticated `GET /api/diary/days/{date}` read the latest collected automatic observations and explicit review notes without contacting Home Assistant or generating prose. A day with no collected snapshot returns null. Manual Diary and Journal sections remain available through `get_daily_note`.
+
+`summarize_diary_period(start, end)` and `GET /api/diary/summary` cover inclusive ranges of up to 366 days. They use current snapshot revisions, report missing dates and source gaps, and include observed-day coverage for each metric. Missing measurements are excluded from averages rather than counted as zero. Steps, distance and listening minutes are additive; weight has first/last and average values without a total. Current-day measurements are marked partial.
+
 ## Configuration and verification
 
 Backplane requires the existing context database, context API token, HA URL/token, Obsidian vault path and local model endpoint. HA uses the existing `backplane_context_authorization` secret. AppDaemon's dated exports must be available before enabling `input_boolean.automatic_diary`; it restores its state and defaults off on first creation. The start and completion date helpers persist across restarts.

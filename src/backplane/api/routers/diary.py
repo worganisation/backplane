@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime as dt  # ruff: ignore[typing-only-standard-library-import] -- The transport resolves dates at runtime.
 import uuid  # ruff:ignore[typing-only-standard-library-import] -- The transport resolves annotations at runtime.
 from typing import Annotated
 
@@ -11,6 +12,7 @@ from backplane.api.context_auth import require_context_api_token
 from backplane.context.schemas import (
     CapturePrompt,  # ruff:ignore[typing-only-first-party-import] -- The transport resolves annotations at runtime.
 )
+from backplane.diary.history import DiaryDay, DiaryHistoryService, DiaryPeriod
 from backplane.diary.models import (  # ruff:ignore[typing-only-first-party-import] -- The transport resolves annotations at runtime.
     DiarySyncRequest,
     DiarySyncResult,
@@ -33,6 +35,18 @@ def get_diary_service() -> DiaryService:
 
 
 Service = Annotated[DiaryService, Depends(get_diary_service)]
+
+
+@router.get("/days/{date}")
+async def read_diary_day(date: dt.date) -> DiaryDay | None:
+    """Return latest automatic diary data without collecting or generating text."""
+    return await DiaryHistoryService().get_day(date)
+
+
+@router.get("/summary")
+async def summarize_diary(start: dt.date, end: dt.date) -> DiaryPeriod:
+    """Return recorded metric summaries and coverage for an inclusive date range."""
+    return await DiaryHistoryService().summarize(start, end)
 
 
 @router.post("/sync")
