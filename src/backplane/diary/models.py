@@ -20,6 +20,7 @@ class DiaryEntry(BaseModel, frozen=True):
     started_at: AwareDatetime | None = None
     ended_at: AwareDatetime | None = None
     needs_confirmation: bool = False
+    dog_detection_times: list[AwareDatetime] = Field(default_factory=list)
 
 
 class HabitMeasurement(BaseModel, frozen=True):

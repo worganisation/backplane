@@ -10,7 +10,7 @@ import pytest
 import yarl
 from aiohttp import web
 
-from backplane.diary.collector import MOOD, collect_day
+from backplane.diary.collector import DOG, MOOD, collect_day
 from backplane.diary.render import generate_narrative
 from backplane.utils import SETTINGS, exc
 
@@ -57,6 +57,7 @@ async def source_server(unused_tcp_port: int) -> AsyncIterator[yarl.URL]:
 
     async def history(request: web.Request) -> web.Response:
         _ = await request.read()
+        assert DOG in request.query["filter_entity_id"].split(",")
         return web.json_response([])
 
     async def calendar(request: web.Request) -> web.Response:
