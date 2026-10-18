@@ -176,7 +176,7 @@ async def update_task(task_id: str, change: TaskUpdate) -> TaskUpdateResult:
         warnings: list[str] = []
         if task.status in {"backlog", "doing", "done"}:
             try:
-                await _update_board(task)
+                await reconcile_task_board(task)
             except (OSError, exc.ConflictError) as error:
                 warnings.append(
                     f"Task saved; board update failed. Retry the same update to repair it: {error}",
@@ -185,7 +185,7 @@ async def update_task(task_id: str, change: TaskUpdate) -> TaskUpdateResult:
         return TaskUpdateResult(task=task, warnings=warnings)
 
 
-async def _update_board(task: TaskRecord) -> None:
+async def reconcile_task_board(task: TaskRecord) -> None:
     """Write the secondary board atomically, rejecting observed external edits.
 
     Raises:
