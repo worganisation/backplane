@@ -46,4 +46,5 @@ jobs:
           # Validated values are intentionally expanded into the remote command.
           # shellcheck disable=SC2029
           ssh -F "$SSH_CONFIG" "${DEPLOY_SSH_USER}@${DEPLOY_HOST}" \
-            "cd '${INSTALL_DIR}' && git fetch --tags origin && git reset --hard 'refs/tags/${TAG}' && just _deploy-current"
+            "cd '${INSTALL_DIR}' && git fetch --tags origin &&
+            git reset --hard 'refs/tags/${TAG}' && just _deploy-current"
