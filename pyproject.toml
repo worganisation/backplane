@@ -141,7 +141,7 @@ version_toml = ["pyproject.toml:project.version"]
 version_variables = [
   "src/backplane/__init__.py:__version__",
 ]
-major_on_zero = false
+major_on_zero = true
 allow_zero_version = true
 build_command = """
     python -m pip install uv
@@ -150,6 +150,9 @@ build_command = """
   """
 
 # Git pushes use checkout's SSH deploy key; GH_TOKEN still creates GitHub releases.
+[tool.semantic_release.changelog.default_templates]
+mask_initial_release = false
+
 [tool.semantic_release.remote]
 ignore_token_for_push = true
 
