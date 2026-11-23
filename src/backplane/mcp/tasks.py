@@ -213,6 +213,12 @@ async def capture_task(
             description="Explicit project name; creates a stub if absent. Omit for no explicit assignment.",
         ),
     ] = None,
+    link_capture_id: Annotated[
+        str | None,
+        Field(
+            description="Exact individual idea ID explicitly selected for promotion; no fuzzy matching.",
+        ),
+    ] = None,
     idempotency_key: Annotated[
         str | None,
         Field(
@@ -226,7 +232,8 @@ async def capture_task(
     Prefer for voice capture: 'I need to', 'I should', or 'add a task'. No project is required.
     Preserves original text and explicit project; does not infer entity links,
     schedule reminders or arrange later enrichment.
-    Use create_task only when metadata enrichment or a confirmed idea link is requested.
+    Pass link_capture_id to promote an explicitly selected idea in the same retryable write.
+    Use create_task only when metadata enrichment is requested.
     Reuse the same idempotency_key and fields on retries; report any returned warnings.
 
     Returns:
@@ -239,6 +246,7 @@ async def capture_task(
         priority=priority,
         idempotency_key=idempotency_key,
         project=project,
+        link_capture_id=link_capture_id,
         enrich_metadata=False,
     )
     return task_creation_outcome(task)
