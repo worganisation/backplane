@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = ">=3.14"
 
 [[package]]
@@ -240,6 +240,8 @@ dependencies = [
 dev = [
     { name = "basedpyright" },
     { name = "diff-cover" },
+    { name = "jinja2" },
+    { name = "jsonschema" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
@@ -276,6 +278,8 @@ requires-dist = [
 dev = [
     { name = "basedpyright", specifier = ">=1.40.1" },
     { name = "diff-cover", specifier = ">=10.5.1" },
+    { name = "jinja2", specifier = ">=3.1.6" },
+    { name = "jsonschema", specifier = ">=4.26.0" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-asyncio", specifier = ">=1.4.0" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
