@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.13.1 (2026-11-23)
+
+### Bug Fixes
+
+- Follow the Home Assistant direct model configuration step
+  ([#160](https://github.com/worganisation/backplane/pull/160),
+  [`5b262b7`](https://github.com/worganisation/backplane/commit/5b262b7481aa29e911cc1f189450e3edbb0c041b))
+
+
 ## v0.13.0 (2026-11-23)
 
 ### Bug Fixes
