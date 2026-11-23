@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.13.2 (2026-11-23)
+
+### Bug Fixes
+
+- Match Home Assistant's stored prompt representation
+  ([#161](https://github.com/worganisation/backplane/pull/161),
+  [`25d1326`](https://github.com/worganisation/backplane/commit/25d1326f515c3a3ef87bff0e986fb879f498c8d1))
+
+
 ## v0.13.1 (2026-11-23)
 
 ### Bug Fixes
