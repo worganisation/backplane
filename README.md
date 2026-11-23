@@ -209,6 +209,7 @@ Tool routing:
   do not record it as a new idea or create tasks/projects without explicit commitment.
 - Use `record_diary` for personal experiences and completed activities; it adds the capture timestamp.
 - Use `add_to_daily_note` for a different daily-note section explicitly requested by the user.
+- Use `list_tasks` to browse tasks by project/status, and `get_task` to retrieve an exact stable task ID.
 - Use `capture_task` for actionable things the user needs, wants, or intends to do, without model enrichment.
 - Use `create_task` when metadata enrichment or a confirmed prior idea link is requested.
 - Use `record_idea` for loose, speculative, non-committal ideas.
@@ -492,6 +493,20 @@ Returns:
 | --- | --- | --- | --- | --- |
 | `submission_id` | `string` | yes | — |  |
 
+#### `get_task`
+
+Retrieve exactly one durable task ID, including after a note rename.
+
+Returns:
+    The identified task with its original Markdown body.
+
+Raises:
+    NotFoundError: No task has that identity.
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `task_id` | `string` | yes | — |  |
+
 #### `get_vault_entity`
 
 Read a Domain, Project, Resource, or Person note as rendered markdown.
@@ -556,6 +571,23 @@ Returns:
 | --- | --- | --- | --- | --- |
 | `limit` | `integer` | no | `20` |  |
 | `offset` | `integer` | no | `0` |  |
+
+#### `list_tasks`
+
+Browse tasks with exact filters; an empty project filter means unassigned.
+
+Returns:
+    A bounded page, ordered by title and stable ID.
+
+Raises:
+    BadRequestError: Pagination exceeds the supported bounds.
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `limit` | `integer` | no | `20` |  |
+| `offset` | `integer` | no | `0` |  |
+| `project` | `string`? | no | `null` |  |
+| `status` | `string`? | no | `null` |  |
 
 #### `list_vault_entities`
 

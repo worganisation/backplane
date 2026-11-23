@@ -16,6 +16,7 @@ Tool routing:
   do not record it as a new idea or create tasks/projects without explicit commitment.
 - Use `record_diary` for personal experiences and completed activities; it adds the capture timestamp.
 - Use `add_to_daily_note` for a different daily-note section explicitly requested by the user.
+- Use `list_tasks` to browse tasks by project/status, and `get_task` to retrieve an exact stable task ID.
 - Use `capture_task` for actionable things the user needs, wants, or intends to do, without model enrichment.
 - Use `create_task` when metadata enrichment or a confirmed prior idea link is requested.
 - Use `record_idea` for loose, speculative, non-committal ideas.
