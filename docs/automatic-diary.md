@@ -45,3 +45,9 @@ Verify collection against the source dates and quantities, then inspect the gene
 Calendar entries use the source UID and recurrence ID when supplied by Home Assistant. A recurring source with a recurrence rule but no occurrence ID uses its start boundary to distinguish occurrences. Exact legacy identities are carried through snapshot revisions so existing confirmations remain linked after later title edits. Sources without a UID retain a conservative content-derived identity; edits to those records require confirmation again. A source edited before its first identity-bearing snapshot cannot be safely matched to an older differently worded record.
 
 Phone notification replies use the [durable review inbox](review-inbox.md) before model processing. Its receipt status determines whether export completed; assistant speech alone does not confirm a save.
+
+## Contextual review questions
+
+The daily notification asks one concrete question about the most recently completed unresolved calendar event or walking outing in its pinned snapshot. The review's `focus_entry_id` identifies that exact item; a direct answer must not confirm every unresolved event in the day. Future and all-day calendar entries are not attendance questions. If there is no eligible item, the notification asks whether anything should be added. Existing explicit responses remain available for the rest of the review.
+
+The evening schedule, one daily review, shared prompt budget, cooldown, home/receptive checks and quiet-hours gate remain in force. A failed phone submission can retrieve its original unexpired scheduled review, including the same wording and focus. An acknowledged, dismissed or expired review is not resent. The generic observations API is for independent source observations; calendar and location sources use their existing snapshot identities to avoid duplicate timeline records.

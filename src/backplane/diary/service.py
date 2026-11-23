@@ -38,6 +38,7 @@ from backplane.diary.models import (
     DiarySyncResult,
     retain_entry_aliases,
 )
+from backplane.diary.questions import review_question
 from backplane.diary.render import export_day, facts_text, generate_narrative
 from backplane.services.context_capture import ContextCaptureService
 from backplane.utils import SETTINGS, exc
@@ -57,6 +58,7 @@ class DiaryReview(BaseModel):
     prompt: CapturePrompt
     snapshot: DiarySnapshot
     responses: list[DiaryReviewResponse]
+    focus_entry_id: str | None = None
 
 
 class DiaryService(ContextCaptureService):
@@ -282,6 +284,8 @@ class DiaryService(ContextCaptureService):
                 return None
 
             snapshot = DiarySnapshot.model_validate(row.payload)
+            responses = await self._responses(session, local.date())
+            wording, focus_entry_id = review_question(snapshot, responses)
             request = CapturePromptEvaluationRequest(
                 user_id=_USER,
                 source=_SOURCE,
@@ -290,12 +294,13 @@ class DiaryService(ContextCaptureService):
                 budget_class=CaptureBudgetClass.BASELINE,
                 event_ids=[row.id],
                 reason="One daily diary review while home and receptive",
-                wording=(
-                    f"Review your diary for {local:%A %d %B}: "
-                    "confirm scheduled events and possible walks, or add anything missing."
-                ),
+                wording=wording,
                 expires_at=now + dt.timedelta(hours=18),
-                provenance={"date": local.date().isoformat(), "snapshot_id": str(row.id)},
+                provenance={
+                    "date": local.date().isoformat(),
+                    "snapshot_id": str(row.id),
+                    "focus_entry_id": focus_entry_id,
+                },
             )
             start, end = self._local_day_bounds(now, policy.timezone)
             if (
@@ -331,7 +336,8 @@ class DiaryService(ContextCaptureService):
             return DiaryReview(
                 prompt=await self._prompt_from_row(session, prompt),
                 snapshot=snapshot,
-                responses=[],
+                responses=responses,
+                focus_entry_id=focus_entry_id,
             )
 
     async def get_review_for_date(self, date: dt.date) -> DiaryReview | None:
@@ -386,6 +392,11 @@ class DiaryService(ContextCaptureService):
                 prompt=await self._prompt_from_row(session, prompt),
                 snapshot=snapshot,
                 responses=responses,
+                focus_entry_id=(
+                    focus
+                    if isinstance(focus := prompt.provenance.get("focus_entry_id"), str)
+                    else None
+                ),
             )
 
     async def submitted(self, prompt_id: uuid.UUID) -> CapturePrompt:

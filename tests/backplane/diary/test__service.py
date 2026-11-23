@@ -312,6 +312,27 @@ async def test_expired_scheduled_review_is_not_returned(diary: DiaryService) -> 
     assert await diary.reserve(AVAILABLE) is None
 
 
+async def test_contextual_question_identity_is_pinned(diary: DiaryService) -> None:
+    """Later source changes cannot change which event the notification asked about."""
+    current = snapshot()
+    meeting = current.entries[0].model_copy(
+        update={
+            "started_at": NOW - dt.timedelta(hours=2),
+            "ended_at": NOW - dt.timedelta(hours=1),
+        },
+    )
+    await diary.store_snapshot(current.model_copy(update={"entries": [meeting]}))
+    review = await diary.reserve(AVAILABLE)
+    assert review is not None
+    assert review.focus_entry_id == "meeting"
+    assert review.prompt.wording is not None
+    assert "Did you attend" in review.prompt.wording
+
+    await diary.store_snapshot(snapshot(2000, 1))
+    assert await diary.reserve(AVAILABLE) == review
+    assert await diary.get_review(review.prompt.id) == review
+
+
 @pytest.mark.parametrize(
     "response",
     [
