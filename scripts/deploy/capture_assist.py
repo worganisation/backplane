@@ -14,6 +14,7 @@ from backplane.utils.settings import SETTINGS
 
 _JSON = TypeAdapter(JsonValue)
 _ROOT = Path(__file__).resolve().parents[2]
+_FLOW = "/api/config/config_entries/subentries/flow"
 
 
 class CaptureConfig(BaseModel):
@@ -340,6 +341,177 @@ async def wait_for_backplane() -> None:
     raise RuntimeError(msg)
 
 
+class GeneralConfig(BaseModel):
+    """Identify the existing general assistant and its Backplane integration."""
+
+    entry_id: str
+    subentry_id: str
+    mcp_entry_id: str
+
+
+def form_values(form: dict[str, JsonValue]) -> dict[str, JsonValue]:
+    """Preserve suggested values before falling back to schema defaults.
+
+    Returns:
+        Values for the current flat OpenAI conversation form.
+
+    Raises:
+        RuntimeError: If a required value is unavailable or HA rejects the form.
+    """
+    if form.get("type") != "form" or form.get("errors"):
+        msg = "General assistant configuration returned an invalid form"
+        raise RuntimeError(msg)
+
+    values: dict[str, JsonValue] = {}
+    for field in objects(form.get("data_schema")):
+        name = identifier(field, "name")
+        description = mapping(field.get("description", {}))
+        if "suggested_value" in description:
+            values[name] = description["suggested_value"]
+        elif "default" in field:
+            values[name] = field["default"]
+        elif field.get("required"):
+            msg = f"Cannot preserve required general assistant setting: {name}"
+            raise RuntimeError(msg)
+
+    return values
+
+
+async def update_general_prompt(
+    ha: HomeAssistant,
+    form: dict[str, JsonValue],
+    flow_id: str,
+    prompt: str,
+) -> None:
+    """Complete the known OpenAI forms while preserving their suggested values.
+
+    Raises:
+        RuntimeError: If HA changes or rejects the configuration flow.
+    """
+    for step in ("init", "additional", "model"):
+        if form.get("step_id") != step:
+            msg = "Unexpected general assistant configuration step"
+            raise RuntimeError(msg)
+        values = form_values(form)
+        if step == "init":
+            values["prompt"] = prompt
+
+        form = mapping(await ha.request("POST", f"{_FLOW}/{flow_id}", values))
+        if form.get("type") == "abort" and form.get("reason") == "reconfigure_successful":
+            return
+    msg = "General assistant configuration did not finish successfully"
+    raise RuntimeError(msg)
+
+
+async def open_general_form(
+    ha: HomeAssistant,
+    initial: dict[str, JsonValue],
+) -> dict[str, JsonValue]:
+    """Wait for a conversation entry's asynchronous reload before opening its flow.
+
+    Returns:
+        The active configuration form.
+
+    Raises:
+        RuntimeError: If the entry stays unavailable or rejects configuration.
+    """
+    for _ in range(30):
+        form = mapping(await ha.request("POST", _FLOW, initial))
+        if form.get("type") == "form":
+            return form
+        if form.get("type") != "abort" or form.get("reason") != "entry_not_loaded":
+            msg = "General assistant configuration could not be opened"
+            raise RuntimeError(msg)
+        await asyncio.sleep(1)
+
+    msg = "General assistant did not finish reloading"
+    raise RuntimeError(msg)
+
+
+async def cancel_general_flow(ha: HomeAssistant, flow_id: str) -> None:
+    """Discard an unused flow without masking errors when HA already aborted it.
+
+    Raises:
+        aiohttp.ClientResponseError: For errors other than an already-removed flow.
+    """
+    try:
+        await ha.request("DELETE", f"{_FLOW}/{flow_id}")
+    except aiohttp.ClientResponseError as error:
+        if error.status != HTTPStatus.NOT_FOUND:
+            raise
+
+
+async def configure_general(ha: HomeAssistant, config: GeneralConfig) -> None:
+    """Refresh Backplane tools and update only the owned prompt on an existing agent.
+
+    Raises:
+        RuntimeError: If the agent, required APIs or supported flow are unavailable.
+    """
+    entry = unique(await ha.entries(), entry_id=config.entry_id)
+    subentries = objects(
+        await ha.command("config_entries/subentries/list", entry_id=config.entry_id),
+    )
+    subentry = unique(subentries, subentry_id=config.subentry_id)
+    if (
+        not entry
+        or entry.get("domain") != "openai_conversation"
+        or not subentry
+        or subentry.get("subentry_type") != "conversation"
+    ):
+        msg = "Configured general OpenAI conversation subentry is unavailable"
+        raise RuntimeError(msg)
+
+    result = mapping(
+        await ha.request(
+            "POST",
+            f"/api/config/config_entries/entry/{config.mcp_entry_id}/reload",
+        ),
+    )
+    if result.get("require_restart") is not False:
+        msg = "General Backplane integration requires a Home Assistant restart"
+        raise RuntimeError(msg)
+
+    prompt = (
+        "\n\n".join(
+            (_ROOT / "deploy" / name).read_text().strip()
+            for name in ("assist-prompt.jinja", "idea-followup-prompt.jinja")
+        )
+        + "\n"
+    )
+    initial: dict[str, JsonValue] = {
+        "handler": [config.entry_id, "conversation"],
+        "subentry_id": config.subentry_id,
+    }
+    form = await open_general_form(ha, initial)
+    flow_id = identifier(form, "flow_id")
+    completed = False
+    try:
+        values = form_values(form)
+        apis = values.get("llm_hass_api")
+        if not isinstance(apis, list) or f"mcp-{config.mcp_entry_id}" not in apis:
+            msg = "General Backplane API is not selected or registered; retry deployment"
+            raise RuntimeError(msg)
+
+        if values.get("prompt") == prompt:
+            return
+
+        await update_general_prompt(ha, form, flow_id, prompt)
+        completed = True
+    finally:
+        if not completed:
+            await cancel_general_flow(ha, flow_id)
+
+    verification = await open_general_form(ha, initial)
+    verification_id = identifier(verification, "flow_id")
+    try:
+        saved = form_values(verification)
+        if saved.get("prompt") != prompt or saved.get("llm_hass_api") != apis:
+            msg = "General assistant prompt or API selection did not persist"
+            raise RuntimeError(msg)
+    finally:
+        await cancel_general_flow(ha, verification_id)
+
+
 async def main() -> None:
     """Apply the repository-owned capture configuration after a release deployment.
 
@@ -350,6 +522,9 @@ async def main() -> None:
     await wait_for_backplane()
     config = CaptureConfig.model_validate_json(
         (_ROOT / "deploy/capture-assist.json").read_text(),
+    )
+    general_config = GeneralConfig.model_validate_json(
+        (_ROOT / "deploy/general-assist.json").read_text(),
     )
     if not SETTINGS.home_assistant_url or not SETTINGS.home_assistant_token:
         msg = "Home Assistant URL and token are required for capture deployment"
@@ -377,6 +552,7 @@ async def main() -> None:
         mcp_id = await configure_mcp(ha, config)
         agent_id = await configure_agent(ha, config, mcp_id)
         pipeline_id = await configure_pipeline(ha, config, agent_id)
+        await configure_general(ha, general_config)
         logger.info("Capture Assist ready: agent={}, pipeline={}", agent_id, pipeline_id)
 
 
