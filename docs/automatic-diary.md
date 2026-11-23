@@ -26,6 +26,8 @@ Collected snapshots preserve numeric mood scores and habit completion counts alo
 
 `get_diary_day(date)` and authenticated `GET /api/diary/days/{date}` read the latest collected automatic observations and explicit review notes without contacting Home Assistant or generating prose. A day with no collected snapshot returns null. Manual Diary and Journal sections remain available through `get_daily_note`.
 
+`get_diary_review_for_date(date)` and `GET /api/diary/days/{date}/review` find the original review snapshot and exact entry IDs for a named day. They return null when no review exists and never create a notification or substitute another day. Delivered/responded reviews support explicit corrections through `save_diary_review` with a new request ID; dismissed or otherwise inactive reviews retain their existing save restrictions.
+
 `summarize_diary_period(start, end)` and `GET /api/diary/summary` cover inclusive ranges of up to 366 days. They use current snapshot revisions, report missing dates and source gaps, and include observed-day coverage for each metric. Missing measurements are excluded from averages rather than counted as zero. Steps, distance and listening minutes are additive; weight has first/last and average values without a total. Current-day measurements are marked partial.
 
 ## Configuration and verification

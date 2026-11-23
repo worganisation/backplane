@@ -49,6 +49,15 @@ async def summarize_diary(start: dt.date, end: dt.date) -> DiaryPeriod:
     return await DiaryHistoryService().summarize(start, end)
 
 
+@router.get("/days/{date}/review")
+async def read_diary_review_for_date(
+    date: dt.date,
+    service: Service,
+) -> DiaryReview | None:
+    """Return the exact existing review without creating or sending a notification."""
+    return await service.get_review_for_date(date)
+
+
 @router.post("/sync")
 async def sync_diary(request: DiarySyncRequest, service: Service) -> DiarySyncResult:
     """Return the persisted and exported day, with narrative readiness explicit."""
