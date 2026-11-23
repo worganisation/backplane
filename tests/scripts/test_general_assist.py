@@ -98,7 +98,7 @@ async def test_preserves_advanced_settings_and_verifies(
             ],
         },
         {"type": "abort", "reason": "reconfigure_successful"},
-        initial_form("owned\n\nowned\n"),
+        initial_form("owned\n\nowned"),
         {},
     ]
     await configure_general(
@@ -106,6 +106,7 @@ async def test_preserves_advanced_settings_and_verifies(
         GeneralConfig(entry_id="openai", subentry_id="general", mcp_entry_id="tools"),
     )
     calls = general_ha.request.await_args_list
+    assert calls[2].args[2]["prompt"] == "owned\n\nowned"
     assert calls[3].args[2] == {"chat_model": "chosen-model", "temperature": 0}
     assert calls[4].args[2] == {"web_search": False}
     assert calls[2].args[2]["llm_hass_api"] == ["assist", "mcp-tools"]
@@ -167,7 +168,7 @@ async def test_unchanged_prompt_does_not_write(
     mocker.patch("scripts.deploy.capture_assist.Path.read_text", return_value="owned")
     general_ha.request.side_effect = [
         {"require_restart": False},
-        initial_form("owned\n\nowned\n"),
+        initial_form("owned\n\nowned"),
         {},
     ]
     await configure_general(
@@ -255,7 +256,7 @@ async def test_waits_for_reload_before_readback(
         initial_form(),
         {"type": "abort", "reason": "reconfigure_successful"},
         {"type": "abort", "reason": "entry_not_loaded"},
-        initial_form("owned\n\nowned\n"),
+        initial_form("owned\n\nowned"),
         {},
     ]
     await configure_general(
