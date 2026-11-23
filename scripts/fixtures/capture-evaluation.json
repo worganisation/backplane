@@ -81,5 +81,44 @@
     "name": "device_command",
     "text": "Turn off the kitchen lights.",
     "tool": null
+  },
+  {
+    "name": "completed_journey",
+    "text": "I cycled 8 kilometres to the library.",
+    "tool": "record_diary",
+    "arguments": {
+      "date": null
+    },
+    "contains": [
+      "8 kilometres",
+      "library"
+    ]
+  },
+  {
+    "name": "activity_without_intent",
+    "text": "Food shopping.",
+    "tool": null,
+    "clarification": true
+  },
+  {
+    "name": "explicit_action_without_metadata",
+    "text": "Please add a task to replace the hallway bulb.",
+    "tool": "capture_task",
+    "arguments": {
+      "project": null,
+      "priority": null,
+      "due": null
+    },
+    "contains": [
+      "hallway bulb"
+    ]
+  },
+  {
+    "name": "tentative_automation",
+    "text": "I wonder if I could automate greenhouse watering.",
+    "tool": "record_idea",
+    "contains": [
+      "greenhouse watering"
+    ]
   }
 ]
