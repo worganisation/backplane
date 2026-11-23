@@ -209,8 +209,10 @@ Tool routing:
   do not record it as a new idea or create tasks/projects without explicit commitment.
 - Use `record_diary` for personal experiences and completed activities; it adds the capture timestamp.
 - Use `add_to_daily_note` for a different daily-note section explicitly requested by the user.
-- Use `capture_task` for actionable things the user needs, wants, or intends to do, without model enrichment.
-- Use `create_task` when metadata enrichment or a confirmed prior idea link is requested.
+- Use `update_task` for explicit status or project changes by stable task ID; report board warnings.
+- Use `list_tasks` to browse tasks by project/status, and `get_task` to retrieve an exact stable task ID.
+- Use `capture_task` for actions without model enrichment; pass an exact idea ID for explicit promotion.
+- Use `create_task` only when metadata enrichment is requested.
 - Use `record_idea` for loose, speculative, non-committal ideas.
 - Use `list_ideas` to browse captures and `get_idea` to read a stable capture ID.
   Legacy minute groups can contain several ideas.
@@ -300,7 +302,8 @@ Quickly save an action to do as a task and add its board card, without calling a
 Prefer for voice capture: 'I need to', 'I should', or 'add a task'. No project is required.
 Preserves original text and explicit project; does not infer entity links,
 schedule reminders or arrange later enrichment.
-Use create_task only when metadata enrichment or a confirmed idea link is requested.
+Pass link_capture_id to promote an explicitly selected idea in the same retryable write.
+Use create_task only when metadata enrichment is requested.
 Reuse the same idempotency_key and fields on retries; report any returned warnings.
 
 Returns:
@@ -311,6 +314,7 @@ Returns:
 | `description` | `string` | yes | — | Full original action to remember. |
 | `due` | `string`? | no | `null` | Explicit YYYY-MM-DD deadline only. |
 | `idempotency_key` | `string`? | no | `null` | Stable operation key; reuse unchanged input on retry. |
+| `link_capture_id` | `string`? | no | `null` | Exact individual idea ID explicitly selected for promotion; no fuzzy matching. |
 | `priority` | `low` \| `medium` \| `high`? | no | `null` |  |
 | `project` | `string`? | no | `null` | Explicit project name; creates a stub if absent. Omit for no explicit assignment. |
 | `title` | `string`? | no | `null` | Optional short title; omit if not supplied. |
@@ -521,6 +525,20 @@ Returns:
 | --- | --- | --- | --- | --- |
 | `submission_id` | `string` | yes | — |  |
 
+#### `get_task`
+
+Retrieve exactly one durable task ID, including after a note rename.
+
+Returns:
+    The identified task with its original Markdown body.
+
+Raises:
+    NotFoundError: No task has that identity.
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `task_id` | `string` | yes | — |  |
+
 #### `get_vault_entity`
 
 Read a Domain, Project, Resource, or Person note as rendered markdown.
@@ -585,6 +603,23 @@ Returns:
 | --- | --- | --- | --- | --- |
 | `limit` | `integer` | no | `20` |  |
 | `offset` | `integer` | no | `0` |  |
+
+#### `list_tasks`
+
+Browse tasks with exact filters; an empty project filter means unassigned.
+
+Returns:
+    A bounded page, ordered by title and stable ID.
+
+Raises:
+    BadRequestError: Pagination exceeds the supported bounds.
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `limit` | `integer` | no | `20` |  |
+| `offset` | `integer` | no | `0` |  |
+| `project` | `string`? | no | `null` |  |
+| `status` | `string`? | no | `null` |  |
 
 #### `list_vault_entities`
 
@@ -755,8 +790,8 @@ Save the user's elaboration against the exact IDs from get_idea_followup.
 
 Preserve the user's wording. This stores development notes, not a commitment.
 Create a project or task only when the user explicitly asks to commit to it.
-For tasks use capture_task then link_task_to_capture with its task filename stem and
-this capture_id. This avoids model enrichment; projectless tasks are valid.
+For tasks use capture_task with link_capture_id set to this exact capture_id.
+This avoids model enrichment; projectless tasks are valid.
 For a project, include the original idea wikilink and this development note in
 its Overview using create_vault_entity/update_vault_entity.
 
@@ -820,6 +855,18 @@ Returns:
 | --- | --- | --- | --- | --- |
 | `end` | `date` (YYYY-MM-DD) | yes | — |  |
 | `start` | `date` (YYYY-MM-DD) | yes | — |  |
+
+#### `update_task`
+
+Apply explicit task fields and repair its board card on identical retries.
+
+Returns:
+    Saved task state; board failures are actionable warnings, not failed saves.
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `change` | `object` | yes | — | Explicit desired state; no unspecified field is changed. |
+| `task_id` | `string` | yes | — |  |
 
 #### `update_vault_entity`
 

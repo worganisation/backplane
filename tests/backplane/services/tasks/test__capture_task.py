@@ -93,7 +93,6 @@ async def test__capture_task__reports_saved_note_when_board_fails(
     [
         ("  ", None, None),
         ("Check battery", "  ", None),
-        ("Check battery", None, "idea-1"),
     ],
 )
 async def test__capture_task__rejects_invalid_input_before_writing(
@@ -102,7 +101,7 @@ async def test__capture_task__rejects_invalid_input_before_writing(
     title: str | None,
     link_capture_id: str | None,
 ) -> None:
-    """Blank tasks and unsupported capture linking never create a task note."""
+    """Blank tasks never create a task note."""
     with pytest.raises(exc.BadRequestError):
         _ = await TaskService.create_task(
             description,
