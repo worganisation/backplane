@@ -8,6 +8,7 @@
 *.json
 !basedpyright-tests.json
 !deploy/capture-assist.json
+!deploy/general-assist.json
 !scripts/fixtures/readme-vault/.obsidian/daily-notes.json
 *.xlsx
 *.xlsm
