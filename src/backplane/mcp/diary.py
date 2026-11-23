@@ -6,10 +6,14 @@ import datetime as dt  # ruff: ignore[typing-only-standard-library-import] -- Th
 import uuid  # ruff:ignore[typing-only-standard-library-import] -- The transport resolves annotations at runtime.
 from typing import TYPE_CHECKING
 
+from backplane.context.schemas import (
+    ContextEventResult,  # ruff: ignore[typing-only-first-party-import] -- FastMCP resolves response types at runtime.
+)
 from backplane.diary.history import DiaryDay, DiaryHistoryService, DiaryPeriod
 from backplane.diary.models import (
     DiaryReviewResponse,  # ruff:ignore[typing-only-first-party-import] -- The transport resolves annotations at runtime.
 )
+from backplane.diary.observations import DiaryObservationCreate, DiaryObservationService
 from backplane.diary.service import DiaryReview, DiaryService
 from backplane.mcp.auth import OAuthToolRegistrationKwargs, oauth_tool_registration_kwargs
 
@@ -59,6 +63,7 @@ def register_diary_tools(mcp: FastMCP[None], *, require_oauth: bool = False) -> 
         get_diary_day,
         summarize_diary_period,
         get_diary_review_for_date,
+        record_diary_observation,
     ):
         _ = mcp.tool(**auth_kwargs)(tool)
 
@@ -99,3 +104,16 @@ async def summarize_diary_period(start: dt.date, end: dt.date) -> DiaryPeriod:
         Deterministic metrics and explicit gaps from latest collected snapshots.
     """
     return await DiaryHistoryService().summarize(start, end)
+
+
+async def record_diary_observation(request: DiaryObservationCreate) -> ContextEventResult:
+    """Record a dated automation observation with a stable source/key and exact wording.
+
+    Use candidate for inferred events, including camera/location dog-walk guesses.
+    Use confirmed only for explicit user confirmation or a directly established fact.
+    Reuse identical input on retries. This adds no tasks, notifications or model calls.
+
+    Returns:
+        Durable event receipt after its Recorded activities note section is exported.
+    """
+    return await DiaryObservationService().record(request)
