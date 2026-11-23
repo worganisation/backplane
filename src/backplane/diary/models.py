@@ -22,6 +22,13 @@ class DiaryEntry(BaseModel, frozen=True):
     needs_confirmation: bool = False
 
 
+class HabitMeasurement(BaseModel, frozen=True):
+    """Source-labelled completion count for a day with covered habit records."""
+
+    name: str
+    count: Annotated[float, Field(ge=0)]
+
+
 class DiarySnapshot(BaseModel, frozen=True):
     """Complete source projection for one London diary day."""
 
@@ -30,6 +37,8 @@ class DiarySnapshot(BaseModel, frozen=True):
     entries: list[DiaryEntry] = Field(default_factory=list)
     metrics: dict[str, float] = Field(default_factory=dict)
     missing: list[str] = Field(default_factory=list)
+    mood_scores: list[Annotated[float, Field(ge=1, le=5)]] | None = None
+    habits: dict[str, HabitMeasurement] = Field(default_factory=dict)
 
     def fingerprint(self) -> str:
         """Return a content fingerprint independent of polling time."""

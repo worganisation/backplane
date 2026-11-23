@@ -11,7 +11,7 @@ from typing import Annotated
 import aiohttp
 from pydantic import AwareDatetime, BaseModel, Field, JsonValue, TypeAdapter
 
-from backplane.diary.models import DiaryEntry, DiarySnapshot, entry_id
+from backplane.diary.models import DiaryEntry, DiarySnapshot, HabitMeasurement, entry_id
 from backplane.utils import SETTINGS, exc
 
 PERSON = "person.will"
@@ -26,6 +26,7 @@ _MINIMUM_VISIT_SECONDS = 180
 _MINIMUM_OUTING_SECONDS = 600
 _MINIMUM_WALKING_SECONDS = 300
 _INVALID = {"unknown", "unavailable", "none", ""}
+_MAX_MOOD_SCORE = 5
 
 
 class HAState(BaseModel):
@@ -221,10 +222,11 @@ def _outings(
     return entries
 
 
-def _mood_and_habits(
+def _mood_entries(
     states: dict[str, HAState],
     date: dt.date,
     missing: list[str],
+    mood_scores: list[float],
 ) -> list[DiaryEntry]:
     entries: list[DiaryEntry] = []
     mood = states.get(MOOD)
@@ -245,6 +247,10 @@ def _mood_and_habits(
             ):
                 continue
             text = f"Mood: {check_in.get('mood')} ({check_in.get('score')}/5)"
+            if (
+                score := _number(check_in.get("score"))
+            ) is not None and 1 <= score <= _MAX_MOOD_SCORE:
+                mood_scores.append(score)
             if note := check_in.get("note"):
                 text += f" — {note}"
             entries.append(
@@ -257,6 +263,17 @@ def _mood_and_habits(
                 ),
             )
 
+    return entries
+
+
+def _habit_entries(
+    states: dict[str, HAState],
+    date: dt.date,
+    missing: list[str],
+    habits_by_source: dict[str, HabitMeasurement],
+) -> list[DiaryEntry]:
+    entries: list[DiaryEntry] = []
+    date_text = date.isoformat()
     habits = [
         s
         for s in states.values()
@@ -272,6 +289,11 @@ def _mood_and_habits(
             missing.append(f"Dated habit records: {habit.attributes.get('habit_name')}")
             continue
         count = _number(history[date_text])
+        if count is not None:
+            habits_by_source[habit.entity_id] = HabitMeasurement(
+                name=str(habit.attributes.get("habit_name", habit.entity_id)),
+                count=count,
+            )
         if count is not None and count > 0:
             entries.append(
                 DiaryEntry(
@@ -327,7 +349,10 @@ def build_snapshot(
     entries = _locations(histories, start, end)
     if not histories.get(PERSON):
         missing.append("Location history")
-    entries.extend(_mood_and_habits(indexed, date, missing))
+    mood_scores: list[float] = []
+    habits: dict[str, HabitMeasurement] = {}
+    entries.extend(_mood_entries(indexed, date, missing, mood_scores))
+    entries.extend(_habit_entries(indexed, date, missing, habits))
     for state in sorted(
         histories.get(WEIGHT, []) + ([indexed[WEIGHT]] if WEIGHT in indexed else []),
         key=lambda item: item.last_updated,
@@ -356,6 +381,8 @@ def build_snapshot(
         entries=entries,
         metrics=metrics,
         missing=sorted(set(missing)),
+        mood_scores=None if "Dated mood records" in missing else mood_scores,
+        habits=habits,
     )
 
 

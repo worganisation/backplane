@@ -108,6 +108,8 @@ def test_source_dates_corrections_and_calendar_certainty() -> None:
         "music_minutes": 60,
         "weight_kg": 90.3,
     }
+    assert snapshot.mood_scores == [4]
+    assert snapshot.habits["sensor.will_habit_1_status"].count == 2
     assert len([e for e in snapshot.entries if e.kind == "weight"]) == 1
     assert next(e for e in snapshot.entries if e.kind == "calendar").needs_confirmation
     assert "PRIVATE" not in snapshot.model_dump_json()

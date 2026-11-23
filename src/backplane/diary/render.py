@@ -161,6 +161,17 @@ async def export_day(
             _ = note.frontmatter.pop(f"diary_{key}", None)
         for key, value in snapshot.metrics.items():
             note.frontmatter[f"diary_{key}"] = value
+        for key in ("diary_mood_average", "diary_mood_samples", "diary_habit_counts"):
+            _ = note.frontmatter.pop(key, None)
+        if snapshot.mood_scores is not None:
+            note.frontmatter["diary_mood_samples"] = len(snapshot.mood_scores)
+            if snapshot.mood_scores:
+                note.frontmatter["diary_mood_average"] = sum(snapshot.mood_scores) / len(
+                    snapshot.mood_scores,
+                )
+        note.frontmatter["diary_habit_counts"] = {
+            source: habit.count for source, habit in snapshot.habits.items()
+        }
 
 
 class _Message(BaseModel):

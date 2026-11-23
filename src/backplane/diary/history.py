@@ -9,7 +9,7 @@ from sqlalchemy import select
 
 from backplane.context.schemas import ContextEventStatus
 from backplane.context.tables import ContextEventRow
-from backplane.diary.models import DiaryEntry, DiarySnapshot
+from backplane.diary.models import DiaryEntry, DiarySnapshot, HabitMeasurement
 from backplane.diary.render import reviewed_entries
 from backplane.diary.service import DiaryService
 from backplane.utils import exc, today
@@ -27,6 +27,26 @@ class DiaryDay(BaseModel):
     missing: list[str]
     review_notes: list[str]
     partial_day: bool
+    mood_scores: list[float] | None
+    habits: dict[str, HabitMeasurement]
+
+
+class MoodSummary(BaseModel):
+    """Mood coverage and sample-weighted score; no score is inferred for silence."""
+
+    covered_days: int
+    samples: int
+    average: float | None
+
+
+class HabitSummary(BaseModel):
+    """Completion coverage for one stable source identity."""
+
+    name: str
+    observed_days: int
+    missing_days: int
+    completed_days: int
+    completions: float
 
 
 class MetricSummary(BaseModel):
@@ -52,6 +72,8 @@ class DiaryPeriod(BaseModel):
     partial_dates: list[dt.date]
     source_gaps: dict[dt.date, list[str]]
     metrics: dict[str, MetricSummary] = Field(default_factory=dict)
+    mood: MoodSummary
+    habits: dict[str, HabitSummary] = Field(default_factory=dict)
 
 
 class DiaryHistoryService(DiaryService):
@@ -74,6 +96,8 @@ class DiaryHistoryService(DiaryService):
             missing=snapshot.missing,
             review_notes=list(dict.fromkeys(r.note for r in responses if r.note.strip())),
             partial_day=date >= today(),
+            mood_scores=snapshot.mood_scores,
+            habits=snapshot.habits,
         )
 
     async def summarize(self, start: dt.date, end: dt.date) -> DiaryPeriod:
@@ -115,6 +139,26 @@ class DiaryHistoryService(DiaryService):
             for key, value in snapshot.metrics.items():
                 values.setdefault(key, []).append(value)
 
+        moods = [score for s in snapshots.values() for score in (s.mood_scores or [])]
+        habits: dict[str, HabitSummary] = {}
+        for snapshot in snapshots.values():
+            for source, habit in snapshot.habits.items():
+                summary = habits.setdefault(
+                    source,
+                    HabitSummary(
+                        name=habit.name,
+                        observed_days=0,
+                        missing_days=days,
+                        completed_days=0,
+                        completions=0,
+                    ),
+                )
+                summary.name = habit.name
+                summary.observed_days += 1
+                summary.missing_days -= 1
+                summary.completed_days += int(habit.count > 0)
+                summary.completions += habit.count
+
         return DiaryPeriod(
             start=start,
             end=end,
@@ -126,6 +170,12 @@ class DiaryHistoryService(DiaryService):
             ],
             partial_dates=[date for date in snapshots if date >= today()],
             source_gaps={date: s.missing for date, s in snapshots.items() if s.missing},
+            mood=MoodSummary(
+                covered_days=sum(s.mood_scores is not None for s in snapshots.values()),
+                samples=len(moods),
+                average=sum(moods) / len(moods) if moods else None,
+            ),
+            habits=habits,
             metrics={
                 key: MetricSummary(
                     observed_days=len(samples),
