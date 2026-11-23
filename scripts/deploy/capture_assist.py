@@ -383,12 +383,21 @@ async def update_general_prompt(
     flow_id: str,
     prompt: str,
 ) -> None:
-    """Complete the known OpenAI forms while preserving their suggested values.
+    """Update the owned prompt while preserving the settings on each returned form.
+
+    Args:
+        ha: Authenticated Home Assistant client.
+        form: Initial conversation reconfiguration form.
+        flow_id: Active conversation flow identifier.
+        prompt: Desired general assistant prompt.
 
     Raises:
         RuntimeError: If HA changes or rejects the configuration flow.
     """
     for step in ("init", "additional", "model"):
+        if step == "additional" and form.get("step_id") == "model":
+            continue
+
         if form.get("step_id") != step:
             msg = "Unexpected general assistant configuration step"
             raise RuntimeError(msg)
