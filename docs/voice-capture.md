@@ -1,5 +1,7 @@
 # Assist voice capture
 
+Use the [manual capture model evaluation](capture-evaluation.md) to check the local model's proposed routing and arguments against the repository prompt and schemas without saving captures.
+
 Backplane provides diary, idea, and task capture tools to Home Assistant through the Backplane MCP integration. The conversation agent must select that integration under its LLM APIs; installing the MCP integration alone does not expose tools to every agent.
 
 The general-purpose agent prompt is [`deploy/assist-prompt.jinja`](../deploy/assist-prompt.jinja). Release deployment combines it with `deploy/idea-followup-prompt.jinja` and reconciles the existing OpenAI conversation subentry identified in `deploy/general-assist.json` through Home Assistant's supported configuration flow. Home Assistant renders its date/time expressions for each conversation request. Agent configuration is storage-backed. Release CI reconciles the dedicated capture assistant through the supported HA configuration API; the general assistant retains its model, advanced settings and tool selections. Deployment refreshes its Backplane integration, verifies the saved prompt, and stops if that API is unavailable. Re-running deployment repairs an interrupted configuration flow. Do not edit `.storage` directly.
