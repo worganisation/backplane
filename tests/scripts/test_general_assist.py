@@ -16,6 +16,7 @@ from scripts.deploy.capture_assist import (
     form_values,
     mapping,
     objects,
+    update_general_prompt,
 )
 
 if TYPE_CHECKING:
@@ -109,6 +110,38 @@ async def test_preserves_advanced_settings_and_verifies(
     assert calls[4].args[2] == {"web_search": False}
     assert calls[2].args[2]["llm_hass_api"] == ["assist", "mcp-tools"]
     assert calls[-1].args == ("DELETE", "/api/config/config_entries/subentries/flow/flow")
+
+
+async def test_model_step_directly_after_initial_form(general_ha: Mock) -> None:
+    """Preserve model settings when HA includes advanced fields on the initial form.
+
+    Args:
+        general_ha: Mock Home Assistant client with the existing conversation entry.
+    """
+    form = initial_form()
+    fields = objects(form["data_schema"])
+    form["data_schema"] = [*fields, {"name": "chat_model", "default": "chosen-model"}]
+    general_ha.request.side_effect = [
+        {
+            "type": "form",
+            "step_id": "model",
+            "data_schema": [
+                {"name": "web_search", "description": {"suggested_value": False}},
+            ],
+        },
+        {"type": "abort", "reason": "reconfigure_successful"},
+    ]
+
+    await update_general_prompt(general_ha, form, "flow", "updated instructions")
+
+    initial, model = general_ha.request.await_args_list
+    assert initial.args[2] == {
+        "prompt": "updated instructions",
+        "llm_hass_api": ["assist", "mcp-tools"],
+        "recommended": False,
+        "chat_model": "chosen-model",
+    }
+    assert model.args[2] == {"web_search": False}
 
 
 async def test_missing_api_never_submits_prompt(general_ha: Mock) -> None:
