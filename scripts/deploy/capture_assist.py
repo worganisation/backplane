@@ -480,12 +480,9 @@ async def configure_general(ha: HomeAssistant, config: GeneralConfig) -> None:
         msg = "General Backplane integration requires a Home Assistant restart"
         raise RuntimeError(msg)
 
-    prompt = (
-        "\n\n".join(
-            (_ROOT / "deploy" / name).read_text().strip()
-            for name in ("assist-prompt.jinja", "idea-followup-prompt.jinja")
-        )
-        + "\n"
+    prompt = "\n\n".join(
+        (_ROOT / "deploy" / name).read_text().strip()
+        for name in ("assist-prompt.jinja", "idea-followup-prompt.jinja")
     )
     initial: dict[str, JsonValue] = {
         "handler": [config.entry_id, "conversation"],
