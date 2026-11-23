@@ -34,8 +34,8 @@ async def save_idea_elaboration(prompt_id: uuid.UUID, capture_id: str, text: str
 
     Preserve the user's wording. This stores development notes, not a commitment.
     Create a project or task only when the user explicitly asks to commit to it.
-    For tasks use capture_task then link_task_to_capture with its task filename stem and
-    this capture_id. This avoids model enrichment; projectless tasks are valid.
+    For tasks use capture_task with link_capture_id set to this exact capture_id.
+    This avoids model enrichment; projectless tasks are valid.
     For a project, include the original idea wikilink and this development note in
     its Overview using create_vault_entity/update_vault_entity.
 
