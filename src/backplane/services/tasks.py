@@ -20,6 +20,8 @@ from rapidfuzz import fuzz
 
 from backplane.services import ObsidianService
 from backplane.services.ideas import Capture, IdeaService
+from backplane.services.task_catalog import read_task
+from backplane.services.task_updates import reconcile_task_board
 from backplane.services.vault_entities import VaultEntityService
 from backplane.utils import (
     SETTINGS,
@@ -40,7 +42,6 @@ from backplane.utils import (
     safe_slug,
 )
 from backplane.utils.helpers.files import vault_write_lock
-from backplane.utils.kanban import append_board_card
 from backplane.utils.markdown import note_title_from_markdown
 
 _INBOX_DAYS: Final = 30
@@ -1128,17 +1129,19 @@ async def _find_saved_intake(
 
 
 async def _ensure_task_board_card(note_path: AsyncPath) -> None:
-    """Add a card only when the task has no card anywhere on its board."""
-    async with vault_write_lock():
-        board_path = await resolve_under_root(VAULT_PATHS.task_board_path)
-        text = await board_path.read_text(encoding="utf-8")
-        link = build_obsidian_link(note_path)
-        if any(
-            line.lstrip().startswith("- [") and link in line for line in text.splitlines()
-        ):
-            return
+    """Repair a card from current task state, including after lifecycle changes.
 
-        await append_board_card(board_path, note_path)
+    Raises:
+        UserError: The persisted note cannot be projected as a supported task.
+    """
+    async with vault_write_lock():
+        task = await read_task(note_path)
+        if task is None or task.status not in {"backlog", "doing", "done"}:
+            raise exc.UserError(
+                message="Read and repair the task metadata before updating its board.",
+            )
+
+        await reconcile_task_board(task)
 
 
 async def _finish_task_intake(
@@ -1246,6 +1249,30 @@ async def _canonical_project(project: str) -> str:
     )
 
 
+async def _plain_capture_selection(capture_id: str | None) -> MatchOutcome:
+    """Validate explicitly selected provenance without fuzzy matching or inference.
+
+    Returns:
+        The exact individual idea, or no selection when the ID is omitted.
+
+    Raises:
+        NotFoundError: The requested capture does not exist.
+        BadRequestError: A legacy group cannot identify one idea for promotion.
+    """
+    if capture_id is None:
+        return MatchOutcome(matched=None, candidates=[])
+
+    capture = _find_capture_by_id(await _load_all_captures(), capture_id)
+    if capture is None:
+        raise exc.NotFoundError(message=f"Capture {capture_id!r} not found.")
+    if capture.kind != "idea":
+        raise exc.BadRequestError(
+            message="Choose an individual idea, not a legacy group.",
+        )
+
+    return MatchOutcome(matched=capture, candidates=[])
+
+
 @final
 class TaskService:
     """Service for creating structured task notes."""
@@ -1290,10 +1317,6 @@ class TaskService:
             msg = "idempotency_key must not be blank."
             raise exc.BadRequestError(msg)
 
-        if not enrich_metadata and link_capture_id is not None:
-            msg = "Plain task capture does not accept a linked capture."
-            raise exc.BadRequestError(msg)
-
         if not enrich_metadata and (
             not description.strip() or (title is not None and not title.strip())
         ):
@@ -1334,7 +1357,7 @@ class TaskService:
                 fallback_description=description,
             )
         else:
-            capture_selection = MatchOutcome(matched=None, candidates=[])
+            capture_selection = await _plain_capture_selection(link_capture_id)
             metadata = TaskMetadata(
                 title=title or description.strip()[:60],
                 priority=priority or enums.Priority.MEDIUM,
