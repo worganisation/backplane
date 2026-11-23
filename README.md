@@ -209,6 +209,7 @@ Tool routing:
   do not record it as a new idea or create tasks/projects without explicit commitment.
 - Use `record_diary` for personal experiences and completed activities; it adds the capture timestamp.
 - Use `add_to_daily_note` for a different daily-note section explicitly requested by the user.
+- Use `update_task` for explicit status or project changes by stable task ID; report board warnings.
 - Use `list_tasks` to browse tasks by project/status, and `get_task` to retrieve an exact stable task ID.
 - Use `capture_task` for actionable things the user needs, wants, or intends to do, without model enrichment.
 - Use `create_task` when metadata enrichment or a confirmed prior idea link is requested.
@@ -792,6 +793,18 @@ After finding a hit, read entity notes with `get_vault_entity`, daily notes with
 | `kinds` | `domain` \| `person` \| `project` \| `resource` \| `task` \| `daily_note` \| `idea`[]? | no | `null` | Note kinds to search. Omit to search all kinds. |
 | `limit` | `integer` | no | `20` | Maximum number of hits to return. |
 | `query` | `string` | yes | — | Topic or phrase to match in note content. |
+
+#### `update_task`
+
+Apply explicit task fields and repair its board card on identical retries.
+
+Returns:
+    Saved task state; board failures are actionable warnings, not failed saves.
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `change` | `object` | yes | — | Explicit desired state; no unspecified field is changed. |
+| `task_id` | `string` | yes | — |  |
 
 #### `update_vault_entity`
 
