@@ -516,35 +516,40 @@ class ContextCaptureService:
         policy: CapturePolicyRow,
         user_id: str,
         proposed: dt.datetime,
+        *,
+        excluded_prompt_id: uuid.UUID | None = None,
     ) -> dt.datetime:
         if policy.cooldown_seconds == 0:
             return proposed
-        references = (
-            await session.scalars(
-                select(
-                    func.coalesce(
-                        CapturePromptRow.delivered_at,
-                        CapturePromptRow.scheduled_for,
-                        CapturePromptRow.created_at,
-                    ),
-                )
-                .where(
-                    CapturePromptRow.user_id == user_id,
-                    CapturePromptRow.status.in_(_POLICY_ALLOWED_PROMPT_STATUSES),
-                    or_(
-                        CapturePromptRow.status == CapturePromptStatus.SCHEDULED.value,
-                        CapturePromptRow.delivered_at.is_not(None),
-                    ),
-                )
-                .order_by(
-                    func.coalesce(
-                        CapturePromptRow.delivered_at,
-                        CapturePromptRow.scheduled_for,
-                        CapturePromptRow.created_at,
-                    ),
+
+        statement = (
+            select(
+                func.coalesce(
+                    CapturePromptRow.delivered_at,
+                    CapturePromptRow.scheduled_for,
+                    CapturePromptRow.created_at,
                 ),
             )
-        ).all()
+            .where(
+                CapturePromptRow.user_id == user_id,
+                CapturePromptRow.status.in_(_POLICY_ALLOWED_PROMPT_STATUSES),
+                or_(
+                    CapturePromptRow.status == CapturePromptStatus.SCHEDULED.value,
+                    CapturePromptRow.delivered_at.is_not(None),
+                ),
+            )
+            .order_by(
+                func.coalesce(
+                    CapturePromptRow.delivered_at,
+                    CapturePromptRow.scheduled_for,
+                    CapturePromptRow.created_at,
+                ),
+            )
+        )
+        if excluded_prompt_id is not None:
+            statement = statement.where(CapturePromptRow.id != excluded_prompt_id)
+
+        references = (await session.scalars(statement)).all()
         candidate = proposed
         cooldown = dt.timedelta(seconds=policy.cooldown_seconds)
         for reference in references:
