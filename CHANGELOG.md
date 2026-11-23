@@ -2,6 +2,69 @@
 
 <!-- version list -->
 
+## v0.13.0 (2026-11-23)
+
+### Bug Fixes
+
+- Make local capture instructions explicit and actionable
+  ([#141](https://github.com/worganisation/backplane/pull/141),
+  [`03a2be9`](https://github.com/worganisation/backplane/commit/03a2be93ed075984ece4d052fb229e78ada449d0))
+
+- Reconcile general assistant instructions during deployment
+  ([#129](https://github.com/worganisation/backplane/pull/129),
+  [`70aa947`](https://github.com/worganisation/backplane/commit/70aa9472e72750721b5e073fad71d71426a7a7b2))
+
+- Recover unsubmitted diary review notifications
+  ([#144](https://github.com/worganisation/backplane/pull/144),
+  [`d4988fd`](https://github.com/worganisation/backplane/commit/d4988fd7c96d476fe036e615e3ac21eac1b4bea9))
+
+### Chores
+
+- Sync GCF 0.11.1 workflows ([#159](https://github.com/worganisation/backplane/pull/159),
+  [`d208492`](https://github.com/worganisation/backplane/commit/d208492982ffbe5c439ed9bac0269b2524754ec9))
+
+### Features
+
+- Add manual capture model evaluation ([#140](https://github.com/worganisation/backplane/pull/140),
+  [`9630dfa`](https://github.com/worganisation/backplane/commit/9630dfa06e80528ff12759cf0cbf217fd1f97de2))
+
+- Ask contextual questions about exact diary events
+  ([#145](https://github.com/worganisation/backplane/pull/145),
+  [`c5e655d`](https://github.com/worganisation/backplane/commit/c5e655df8552f8bf0d9028f49f72924bbbc4bbdc))
+
+- Browse tasks by stable identity and project
+  ([#133](https://github.com/worganisation/backplane/pull/133),
+  [`f689f25`](https://github.com/worganisation/backplane/commit/f689f258beaf51e595dae92955ebb1ca7b3644eb))
+
+- Capture durable automation diary observations
+  ([#136](https://github.com/worganisation/backplane/pull/136),
+  [`6ca7691`](https://github.com/worganisation/backplane/commit/6ca76917a270916eb2e7255bf5987a8dd0272f07))
+
+- Corroborate possible dog walks with front-step detections
+  ([#146](https://github.com/worganisation/backplane/pull/146),
+  [`51ef49a`](https://github.com/worganisation/backplane/commit/51ef49a9d7d59570de7ec4c19237e8e3bf58aac9))
+
+- Find historical diary reviews by date
+  ([#138](https://github.com/worganisation/backplane/pull/138),
+  [`7a5ae8f`](https://github.com/worganisation/backplane/commit/7a5ae8f48c60f6ef1047464d011b0f18bdd01ead))
+
+- Promote exact ideas through retryable plain task capture
+  ([#131](https://github.com/worganisation/backplane/pull/131),
+  [`238cd32`](https://github.com/worganisation/backplane/commit/238cd327dba49d61ddef83413fd9fd2794bebf39))
+
+- Query diary history and summarize recorded metrics
+  ([#137](https://github.com/worganisation/backplane/pull/137),
+  [`536bf7f`](https://github.com/worganisation/backplane/commit/536bf7f15f0a0a586e8a2738b5deaacdecf98b61))
+
+- Retain structured mood and habit tracking
+  ([#135](https://github.com/worganisation/backplane/pull/135),
+  [`8b71fb3`](https://github.com/worganisation/backplane/commit/8b71fb342217cc1a7bdbe2c326b378ba88f62439))
+
+- Update task status and project with recoverable board projection
+  ([#130](https://github.com/worganisation/backplane/pull/130),
+  [`1317862`](https://github.com/worganisation/backplane/commit/13178625a3a2b00e30eb31e68288c53ecfe7978e))
+
+
 ## v0.12.0 (2026-10-18)
 
 ### Features
