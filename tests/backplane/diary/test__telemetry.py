@@ -14,7 +14,7 @@ from opentelemetry.sdk._logs.export import (
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.sdk.trace.sampling import ALWAYS_ON
-from opentelemetry.trace import StatusCode, format_trace_id
+from opentelemetry.trace import StatusCode
 from pydantic import AnyHttpUrl, ValidationError
 
 from backplane.diary import telemetry
@@ -120,6 +120,7 @@ async def test_completion_matches_timed_stage(
     (completion,) = logs.get_finished_logs()
     record = completion.log_record
     assert record.trace_id == root.context.trace_id
+    assert record.span_id == root.context.span_id
     assert record.body == "diary.sync"
     assert record.attributes is not None
     duration = record.attributes["duration_ms"]
@@ -128,7 +129,6 @@ async def test_completion_matches_timed_stage(
     assert record.attributes == {
         "operation": "diary.sync",
         "outcome": outcome,
-        "trace_id": format_trace_id(root.context.trace_id),
         "duration_ms": duration,
     }
     if outcome == "error":

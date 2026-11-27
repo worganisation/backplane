@@ -20,7 +20,7 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.sdk.trace.sampling import ParentBased, TraceIdRatioBased
-from opentelemetry.trace import StatusCode, format_trace_id
+from opentelemetry.trace import StatusCode
 
 from backplane.utils import SETTINGS
 
@@ -149,6 +149,5 @@ async def observe_sync(
                     "operation": "diary.sync",
                     "outcome": outcome,
                     "duration_ms": (monotonic_ns() - started) // 1_000_000,
-                    "trace_id": format_trace_id(span.get_span_context().trace_id),
                 },
             )
