@@ -150,7 +150,10 @@ async def test_unsampled_sync_returns_the_saved_result(
     """
     _ = mocker.patch.object(telemetry, "TraceIdRatioBased", return_value=ALWAYS_OFF)
     result = DiarySyncResult(
-        date=dt.date(2026, 10, 20), entries=1, missing=[], narrative_ready=True,
+        date=dt.date(2026, 10, 20),
+        entries=1,
+        missing=[],
+        narrative_ready=True,
     )
 
     assert (
