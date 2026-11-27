@@ -110,6 +110,29 @@ class Settings(BaseSettings):
         Field(description="Whether to log SQL emitted by the context persistence layer."),
     ] = False
 
+    diary_otlp_traces_endpoint: AnyHttpUrl | None = None
+    diary_otlp_logs_endpoint: AnyHttpUrl | None = None
+
+    @model_validator(mode="after")
+    def _validate_diary_otlp_endpoints(self) -> Self:
+        """Validate enrollment for correlated diary spans and completion records.
+
+        Returns:
+            Settings with both signals enrolled or both disabled.
+
+        Raises:
+            ValueError: Only one of the two diary OTLP endpoints was supplied.
+        """
+        if (self.diary_otlp_traces_endpoint is None) != (
+            self.diary_otlp_logs_endpoint is None
+        ):
+            message = (
+                "Configure both diary OTLP endpoints to enable operational telemetry."
+            )
+            raise ValueError(message)
+
+        return self
+
     # ========================================================================
     # Home Assistant
 

@@ -40,6 +40,7 @@ from backplane.diary.models import (
 )
 from backplane.diary.questions import review_question
 from backplane.diary.render import export_day, facts_text, generate_narrative
+from backplane.diary.telemetry import diary_stage
 from backplane.services.context_capture import ContextCaptureService
 from backplane.utils import SETTINGS, exc
 
@@ -142,6 +143,9 @@ class DiaryService(ContextCaptureService):
     async def render(self, date: dt.date) -> DiarySyncResult:
         """Serialize exports across workers and always render the current committed view.
 
+        Args:
+            date: Local diary day to render.
+
         Returns:
             Export status and narrative readiness.
 
@@ -166,7 +170,9 @@ class DiaryService(ContextCaptureService):
             ):
                 candidate = narrative.payload.get("text")
                 text = candidate if isinstance(candidate, str) else None
-            await export_day(snapshot, responses, text)
+            with diary_stage("diary.vault.export"):
+                await export_day(snapshot, responses, text)
+
             return DiarySyncResult(
                 date=date,
                 entries=len(snapshot.entries),
@@ -175,7 +181,11 @@ class DiaryService(ContextCaptureService):
             )
 
     async def narrate(self, date: dt.date) -> None:
-        """Cache a narrative by exact factual input; failures leave saved facts usable."""
+        """Cache a narrative for the current facts while preserving a retryable export.
+
+        Args:
+            date: Local diary day for narrative generation.
+        """
         async with self._session_factory() as session:
             row = await self._latest(session, date, "diary_snapshot")
             if row is None:
@@ -189,7 +199,8 @@ class DiaryService(ContextCaptureService):
             if existing and existing.payload.get("fingerprint") == fingerprint:
                 return
         try:
-            text = await generate_narrative(facts)
+            with diary_stage("diary.ollama.generate"):
+                text = await generate_narrative(facts)
         except aiohttp.ClientError, TimeoutError, ValueError:
             logger.warning(
                 "Diary narrative generation failed for {}; facts are retained",
@@ -229,14 +240,24 @@ class DiaryService(ContextCaptureService):
     async def sync(self, date: dt.date, *, narrative: bool = False) -> DiarySyncResult:
         """Collect and export one day, optionally generating its local-model narrative.
 
+        Args:
+            date: Local diary day to reconcile.
+            narrative: Whether to generate a narrative from committed facts.
+
         Returns:
             Export status after collection and optional inference.
         """
-        await self.store_snapshot(await collect_day(date))
+        with diary_stage("diary.home_assistant.collect"):
+            snapshot = await collect_day(date)
+
+        with diary_stage("diary.postgresql.store"):
+            await self.store_snapshot(snapshot)
+
         result = await self.render(date)
         if narrative:
             await self.narrate(date)
             result = await self.render(date)
+
         return result
 
     async def reserve(self, availability: FollowupAvailability) -> DiaryReview | None:
