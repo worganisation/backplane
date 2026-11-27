@@ -13,7 +13,7 @@ from opentelemetry.sdk._logs.export import (
 )
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from opentelemetry.sdk.trace.sampling import ALWAYS_ON
+from opentelemetry.sdk.trace.sampling import ALWAYS_OFF, ALWAYS_ON
 from opentelemetry.trace import StatusCode
 from pydantic import AnyHttpUrl, ValidationError
 
@@ -136,6 +136,29 @@ async def test_completion_matches_timed_stage(
         assert root.status.status_code is StatusCode.ERROR
         assert not child.events
         assert not root.events
+
+
+async def test_unsampled_sync_returns_the_saved_result(
+    exporters: tuple[InMemorySpanExporter, InMemoryLogRecordExporter],
+    mocker: MockerFixture,
+) -> None:
+    """Complete the caller's sync when the sampler drops its span.
+
+    Args:
+        exporters: Local exporters used by the enrolled telemetry provider.
+        mocker: Configure the sampler to drop this sync.
+    """
+    _ = mocker.patch.object(telemetry, "TraceIdRatioBased", return_value=ALWAYS_OFF)
+    result = DiarySyncResult(
+        date=dt.date(2026, 10, 20), entries=1, missing=[], narrative_ready=True,
+    )
+
+    assert (
+        await telemetry.observe_sync(asyncio.sleep(0, result=result), narrative=True)
+        is result
+    )
+    spans, _logs = exporters
+    assert not spans.get_finished_spans()
 
 
 def test_incomplete_diary_enrollment() -> None:
