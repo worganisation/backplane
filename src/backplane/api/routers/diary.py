@@ -20,6 +20,7 @@ from backplane.diary.models import (  # ruff:ignore[typing-only-first-party-impo
 )
 from backplane.diary.observations import DiaryObservationCreate, DiaryObservationService
 from backplane.diary.service import DiaryReview, DiaryService
+from backplane.diary.telemetry import observe_sync
 from backplane.services.idea_followup import (
     FollowupAvailability,  # ruff:ignore[typing-only-first-party-import] -- The transport resolves annotations at runtime.
 )
@@ -68,8 +69,19 @@ async def read_diary_review_for_date(
 
 @router.post("/sync")
 async def sync_diary(request: DiarySyncRequest, service: Service) -> DiarySyncResult:
-    """Return the persisted and exported day, with narrative readiness explicit."""
-    return await service.sync(request.date, narrative=request.narrative)
+    """Collect and export the requested day and record its operational outcome.
+
+    Args:
+        request: Diary date and narrative preference.
+        service: The ledger and vault operations for the request.
+
+    Returns:
+        Persistence, export and narrative status for the requested day.
+    """
+    return await observe_sync(
+        service.sync(request.date, narrative=request.narrative),
+        narrative=request.narrative,
+    )
 
 
 @router.post("/reserve")
